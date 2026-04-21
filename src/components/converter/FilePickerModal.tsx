@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 type Props = {
@@ -17,33 +17,69 @@ export default function FilePickerModal({
 }: Props) {
   return (
     <Modal transparent animationType="slide" visible={visible}>
-      <View className="flex-1 justify-end bg-black/60">
-        <View className="bg-secondary rounded-t-3xl p-6">
-          <Text className="text-white text-lg font-bold mb-4 text-center">
-            Pick Source
-          </Text>
+      <View style={styles.overlay}>
+        <View style={styles.sheet}>
+          <Text style={styles.title}>Pick Source</Text>
 
-          <TouchableOpacity
-            onPress={onPickFile}
-            className="flex-row items-center gap-3 bg-dark rounded-xl p-4 mb-3">
+          <TouchableOpacity onPress={onPickFile} style={styles.option}>
             <Icon name="file-outline" size={24} color="#E63946" />
-            <Text className="text-white font-semibold">Pick from Files</Text>
+            <Text style={styles.optionText}>Pick from Files</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={onPickImage}
-            className="flex-row items-center gap-3 bg-dark rounded-xl p-4 mb-3">
+          <TouchableOpacity onPress={onPickImage} style={styles.option}>
             <Icon name="image-outline" size={24} color="#E63946" />
-            <Text className="text-white font-semibold">Pick from Gallery</Text>
+            <Text style={styles.optionText}>Pick from Gallery</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={onClose}
-            className="items-center py-3 mt-2">
-            <Text className="text-slate-400 font-semibold">Cancel</Text>
+          <TouchableOpacity onPress={onClose} style={styles.cancel}>
+            <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </View>
     </Modal>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  sheet: {
+    backgroundColor: '#1D3557',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+  },
+  title: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#0D1B2A',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  optionText: {
+    color: 'white',
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  cancel: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  cancelText: {
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
+});

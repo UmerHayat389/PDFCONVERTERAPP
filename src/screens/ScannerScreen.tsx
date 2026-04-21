@@ -1,11 +1,10 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 export default function ScannerScreen() {
   const [hasPermission, setHasPermission] = useState(false);
-  const [cameraReady, setCameraReady] = useState(false);
 
   React.useEffect(() => {
     requestPermission();
@@ -13,7 +12,7 @@ export default function ScannerScreen() {
 
   const requestPermission = async () => {
     try {
-      const { check, request, PERMISSIONS, RESULTS } = await import('react-native-permissions');
+      const { request, PERMISSIONS, RESULTS } = await import('react-native-permissions');
       const result = await request(PERMISSIONS.ANDROID.CAMERA);
       setHasPermission(result === RESULTS.GRANTED);
     } catch {
@@ -23,68 +22,58 @@ export default function ScannerScreen() {
 
   if (!hasPermission) {
     return (
-      <SafeAreaView className="flex-1 bg-dark items-center justify-center px-6">
+      <SafeAreaView style={styles.permissionScreen}>
         <Icon name="camera-off" size={70} color="#E63946" />
-        <Text className="text-white text-xl font-bold mt-6 text-center">
-          Camera Permission Required
-        </Text>
-        <Text className="text-slate-400 text-sm mt-2 text-center">
-          We need camera access to scan documents
-        </Text>
-        <TouchableOpacity
-          className="bg-primary px-8 py-4 rounded-full mt-6"
-          onPress={requestPermission}>
-          <Text className="text-white font-bold text-base">Grant Permission</Text>
+        <Text style={styles.permissionTitle}>Camera Permission Required</Text>
+        <Text style={styles.permissionSub}>We need camera access to scan documents</Text>
+        <TouchableOpacity style={styles.grantBtn} onPress={requestPermission}>
+          <Text style={styles.grantBtnText}>Grant Permission</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-dark">
+    <SafeAreaView style={styles.safeArea}>
       {/* Header */}
-      <View className="px-4 pt-4 pb-2">
-        <Text className="text-2xl font-bold text-white">Document Scanner</Text>
-        <Text className="text-slate-400 text-sm mt-1">
-          Align document in frame and capture
-        </Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Document Scanner</Text>
+        <Text style={styles.subtitle}>Align document in frame and capture</Text>
       </View>
 
       {/* Camera Placeholder */}
-      <View className="flex-1 mx-4 rounded-3xl overflow-hidden bg-secondary items-center justify-center">
+      <View style={styles.cameraBox}>
         <Icon name="camera-outline" size={80} color="#457B9D" />
-        <Text className="text-slate-400 mt-4 text-base">Camera Preview</Text>
-        <Text className="text-slate-500 text-xs mt-1">
-          Install vision-camera to enable
-        </Text>
+        <Text style={styles.cameraText}>Camera Preview</Text>
+        <Text style={styles.cameraHint}>Install vision-camera to enable</Text>
 
         {/* Scanner Frame Overlay */}
-        <View className="absolute inset-0 items-center justify-center">
-          <View className="w-72 h-96 relative">
-            <View className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-primary rounded-tl-lg" />
-            <View className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-primary rounded-tr-lg" />
-            <View className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-primary rounded-bl-lg" />
-            <View className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-primary rounded-br-lg" />
+        <View style={styles.overlayContainer}>
+          <View style={styles.frame}>
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
           </View>
         </View>
       </View>
 
       {/* Controls */}
-      <View className="flex-row items-center justify-around py-6 px-8">
+      <View style={styles.controls}>
         <TouchableOpacity
-          className="bg-secondary p-4 rounded-full"
+          style={styles.controlBtn}
           onPress={() => Alert.alert('Gallery', 'Pick from gallery')}>
           <Icon name="image-multiple" size={24} color="white" />
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => Alert.alert('Scanned!', 'Document captured successfully')}
-          className="bg-primary w-20 h-20 rounded-full items-center justify-center">
+          style={styles.captureBtn}>
           <Icon name="camera" size={36} color="white" />
         </TouchableOpacity>
 
         <TouchableOpacity
-          className="bg-secondary p-4 rounded-full"
+          style={styles.controlBtn}
           onPress={() => Alert.alert('Flash', 'Toggle flash')}>
           <Icon name="flash" size={24} color="white" />
         </TouchableOpacity>
@@ -92,3 +81,134 @@ export default function ScannerScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#0D1B2A',
+  },
+  permissionScreen: {
+    flex: 1,
+    backgroundColor: '#0D1B2A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  permissionTitle: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 24,
+    textAlign: 'center',
+  },
+  permissionSub: {
+    color: '#94a3b8',
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  grantBtn: {
+    backgroundColor: '#E63946',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 999,
+    marginTop: 24,
+  },
+  grantBtnText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  subtitle: {
+    color: '#94a3b8',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  cameraBox: {
+    flex: 1,
+    marginHorizontal: 16,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#1D3557',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraText: {
+    color: '#94a3b8',
+    marginTop: 16,
+    fontSize: 16,
+  },
+  cameraHint: {
+    color: '#64748b',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  overlayContainer: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  frame: {
+    width: 288,
+    height: 384,
+    position: 'relative',
+  },
+  corner: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderColor: '#E63946',
+    borderWidth: 2,
+  },
+  topLeft: {
+    top: 0, left: 0,
+    borderRightWidth: 0, borderBottomWidth: 0,
+    borderTopLeftRadius: 8,
+  },
+  topRight: {
+    top: 0, right: 0,
+    borderLeftWidth: 0, borderBottomWidth: 0,
+    borderTopRightRadius: 8,
+  },
+  bottomLeft: {
+    bottom: 0, left: 0,
+    borderRightWidth: 0, borderTopWidth: 0,
+    borderBottomLeftRadius: 8,
+  },
+  bottomRight: {
+    bottom: 0, right: 0,
+    borderLeftWidth: 0, borderTopWidth: 0,
+    borderBottomRightRadius: 8,
+  },
+  controls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: 24,
+    paddingHorizontal: 32,
+  },
+  controlBtn: {
+    backgroundColor: '#1D3557',
+    padding: 16,
+    borderRadius: 999,
+  },
+  captureBtn: {
+    backgroundColor: '#E63946',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

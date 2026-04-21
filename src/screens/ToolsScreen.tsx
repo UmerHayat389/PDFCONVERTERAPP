@@ -6,9 +6,10 @@ import {
   FlatList,
   Alert,
   ActivityIndicator,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DocumentPicker from 'react-native-document-picker';
+import { pick, types, errorCodes } from '@react-native-documents/picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { CONVERSIONS } from '../utils/constants';
 import { ConversionType } from '../types';
@@ -20,60 +21,39 @@ export default function ToolsScreen() {
   const [converting, setConverting] = useState<string | null>(null);
 
   const filtered = CONVERSIONS.filter(c =>
-    activeCategory === 'All'
-      ? true
-      : c.category === activeCategory.toLowerCase(),
+    activeCategory === 'All' ? true : c.category === activeCategory.toLowerCase(),
   );
 
   const handleConvert = async (tool: ConversionType): Promise<void> => {
     try {
-      const result = await DocumentPicker.pickSingle({
-        type: [DocumentPicker.types.allFiles],
-      });
+      const [result] = await pick({ type: [types.allFiles] });
       setConverting(tool.id);
       await new Promise<void>(r => setTimeout(r, 2000));
       setConverting(null);
       Alert.alert('Success!', `${result.name} converted to ${tool.to}`);
     } catch (e: unknown) {
       setConverting(null);
-      if (!DocumentPicker.isCancel(e)) {
+      if ((e as any)?.code !== errorCodes.OPERATION_CANCELED) {
         Alert.alert('Error', 'Conversion failed');
       }
     }
   };
 
-  const handleCategoryPress = (cat: string): void => {
-    setActiveCategory(cat);
-  };
-
   return (
-    <SafeAreaView className="flex-1 bg-dark">
-      <View className="px-4 pt-4 pb-2">
-        <Text className="text-2xl font-bold text-white mb-4">
-          Conversion Tools
-        </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Conversion Tools</Text>
 
-        {/* Category Filter */}
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+        <View style={styles.categories}>
           {CATEGORIES.map(cat => (
             <TouchableOpacity
               key={cat}
-              onPress={(): void => handleCategoryPress(cat)}
-              style={{
-                paddingHorizontal: 16,
-                paddingVertical: 8,
-                borderRadius: 999,
-                backgroundColor:
-                  activeCategory === cat ? '#E63946' : '#1D3557',
-              }}>
-              <Text
-                style={{
-                  color: 'white',
-                  fontSize: 12,
-                  fontWeight: '600',
-                }}>
-                {cat}
-              </Text>
+              onPress={() => setActiveCategory(cat)}
+              style={[
+                styles.categoryBtn,
+                activeCategory === cat && styles.categoryBtnActive,
+              ]}>
+              <Text style={styles.categoryText}>{cat}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -87,39 +67,15 @@ export default function ToolsScreen() {
         columnWrapperStyle={{ gap: 12 }}
         renderItem={({ item }: { item: ConversionType }) => (
           <TouchableOpacity
-            onPress={(): void => { handleConvert(item); }}
-            style={{
-              flex: 1,
-              backgroundColor: '#1D3557',
-              borderRadius: 16,
-              padding: 16,
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: 110,
-            }}>
+            onPress={() => handleConvert(item)}
+            style={styles.toolCard}>
             {converting === item.id ? (
               <ActivityIndicator color="#E63946" />
             ) : (
               <>
                 <Icon name={item.icon} size={32} color="#E63946" />
-                <Text
-                  style={{
-                    color: 'white',
-                    fontWeight: 'bold',
-                    marginTop: 8,
-                    textAlign: 'center',
-                    fontSize: 13,
-                  }}>
-                  {item.label}
-                </Text>
-                <Text
-                  style={{
-                    color: '#94a3b8',
-                    fontSize: 11,
-                    marginTop: 4,
-                  }}>
-                  Tap to pick file
-                </Text>
+                <Text style={styles.toolLabel}>{item.label}</Text>
+                <Text style={styles.toolSub}>Tap to pick file</Text>
               </>
             )}
           </TouchableOpacity>
@@ -128,3 +84,61 @@ export default function ToolsScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#0D1B2A',
+  },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 16,
+  },
+  categories: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  categoryBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#1D3557',
+  },
+  categoryBtnActive: {
+    backgroundColor: '#E63946',
+  },
+  categoryText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  toolCard: {
+    flex: 1,
+    backgroundColor: '#1D3557',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 110,
+  },
+  toolLabel: {
+    color: 'white',
+    fontWeight: 'bold',
+    marginTop: 8,
+    textAlign: 'center',
+    fontSize: 13,
+  },
+  toolSub: {
+    color: '#94a3b8',
+    fontSize: 11,
+    marginTop: 4,
+  },
+});

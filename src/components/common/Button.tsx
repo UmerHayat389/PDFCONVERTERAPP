@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { TouchableOpacity, Text, ActivityIndicator, StyleSheet } from 'react-native';
 
 type Props = {
   label: string;
@@ -16,23 +16,51 @@ export default function Button({
   variant = 'primary',
   disabled = false,
 }: Props) {
-  const base = 'px-6 py-3 rounded-full items-center justify-center';
-  const variants = {
-    primary: 'bg-primary',
-    secondary: 'bg-secondary',
-    outline: 'border border-primary bg-transparent',
-  };
-
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
-      className={`${base} ${variants[variant]} ${disabled ? 'opacity-50' : ''}`}>
+      style={[
+        styles.base,
+        variant === 'primary' && styles.primary,
+        variant === 'secondary' && styles.secondary,
+        variant === 'outline' && styles.outline,
+        (disabled || loading) && styles.disabled,
+      ]}>
       {loading ? (
         <ActivityIndicator color="white" size="small" />
       ) : (
-        <Text className="text-white font-bold text-sm">{label}</Text>
+        <Text style={styles.label}>{label}</Text>
       )}
     </TouchableOpacity>
   );
 }
+
+const styles = StyleSheet.create({
+  base: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primary: {
+    backgroundColor: '#E63946',
+  },
+  secondary: {
+    backgroundColor: '#1D3557',
+  },
+  outline: {
+    borderWidth: 1,
+    borderColor: '#E63946',
+    backgroundColor: 'transparent',
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+  label: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+});

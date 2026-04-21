@@ -17,7 +17,6 @@
     "@react-navigation/native": "^7.2.2",
     "@react-navigation/stack": "^7.8.10",
     "@reduxjs/toolkit": "^2.11.2",
-    "nativewind": "^4.2.3",
     "react": "19.2.3",
     "react-native": "0.85.1",
     "react-native-fs": "^2.20.0",

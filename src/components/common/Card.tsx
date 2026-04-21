@@ -1,16 +1,22 @@
 import React from 'react';
-import { View, ViewProps } from 'react-native';
+import { View, ViewProps, StyleSheet } from 'react-native';
 
 type Props = ViewProps & {
   children: React.ReactNode;
 };
 
-export default function Card({ children, className, ...props }: Props) {
+export default function Card({ children, style, ...props }: Props) {
   return (
-    <View
-      className={`bg-secondary rounded-2xl p-4 ${className || ''}`}
-      {...props}>
+    <View style={[styles.card, style]} {...props}>
       {children}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: '#1D3557',
+    borderRadius: 16,
+    padding: 16,
+  },
+});

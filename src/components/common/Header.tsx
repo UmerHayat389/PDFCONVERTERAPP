@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 
 type Props = {
   title: string;
@@ -8,11 +8,26 @@ type Props = {
 
 export default function Header({ title, subtitle }: Props) {
   return (
-    <View className="pt-4 pb-6">
-      <Text className="text-3xl font-bold text-white">{title}</Text>
-      {subtitle && (
-        <Text className="text-slate-400 mt-1 text-sm">{subtitle}</Text>
-      )}
+    <View style={styles.container}>
+      <Text style={styles.title}>{title}</Text>
+      {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  subtitle: {
+    color: '#94a3b8',
+    marginTop: 4,
+    fontSize: 14,
+  },
+});

@@ -1,13 +1,51 @@
 import RNFS from 'react-native-fs';
+import { Platform } from 'react-native';
 import { FileItem } from '../types';
-import { generateFileName } from '../utils/fileUtils';
 
+/**
+ * Download a file from a URL and save it to the device Downloads folder.
+ * On Android it also triggers a media scan so it appears in Gallery.
+ */
+export const downloadAndSaveFile = async (
+  downloadUrl: string,
+  fileName: string,
+): Promise<string> => {
+  const destPath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+
+  const result = await RNFS.downloadFile({
+    fromUrl: downloadUrl,
+    toFile: destPath,
+    background: true,
+    discretionary: true,
+    progressDivider: 10,
+  }).promise;
+
+  if (result.statusCode !== 200) {
+    throw new Error(`Download failed: HTTP ${result.statusCode}`);
+  }
+
+  // Make file visible in Android Gallery
+  if (Platform.OS === 'android') {
+    await RNFS.scanFile(destPath);
+  }
+
+  return destPath;
+};
+
+/**
+ * Save a file that is already on-device to the Downloads folder.
+ */
 export const saveFile = async (
   sourceUri: string,
   fileName: string,
 ): Promise<string> => {
   const destPath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
   await RNFS.copyFile(sourceUri, destPath);
+
+  if (Platform.OS === 'android') {
+    await RNFS.scanFile(destPath);
+  }
+
   return destPath;
 };
 

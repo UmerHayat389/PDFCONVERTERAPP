@@ -1,10 +1,6 @@
 import RNFS from 'react-native-fs';
-import { generateFileName } from '../utils/fileUtils';
 
-// ─── Change this to your machine's local IP when testing on a real device ───
-// e.g. 'http://192.168.1.10:3000'  (find it with: ipconfig / ifconfig)
-// For Android Emulator use: 'http://10.0.2.2:3000'
-const BASE_URL = 'http://10.0.2.2:3000';
+const BASE_URL = 'http://192.168.100.4:3000';
 
 export type ConversionResult = {
   downloadUrl: string;
@@ -13,9 +9,6 @@ export type ConversionResult = {
   fileSize: number;
 };
 
-/**
- * Upload a file to the backend and get back the converted file info.
- */
 export const convertFile = async (
   sourceUri: string,
   fromFormat: string,
@@ -36,9 +29,7 @@ export const convertFile = async (
   const response = await fetch(`${BASE_URL}/api/convert`, {
     method: 'POST',
     body: formData,
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    headers: { 'Content-Type': 'multipart/form-data' },
   });
 
   const data = await response.json();
@@ -47,15 +38,20 @@ export const convertFile = async (
     throw new Error(data.error || 'Conversion failed');
   }
 
+  // ✅ Fix: only prepend BASE_URL if path starts with /
+  const resolveUrl = (path: string | null) => {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    return `${BASE_URL}${path.startsWith('/') ? path : '/' + path}`;
+  };
+
   return {
-    downloadUrl: data.downloadUrl,
-    previewUrl: data.previewUrl,
+    downloadUrl: resolveUrl(data.downloadUrl)!,
+    previewUrl: resolveUrl(data.previewUrl),
     fileName: data.fileName,
     fileSize: data.fileSize,
   };
 };
-
-// ─── Legacy placeholders kept for scanner (not removed) ───
 
 export const convertImageFormat = async (
   sourceUri: string,

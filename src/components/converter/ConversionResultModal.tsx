@@ -1,378 +1,145 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  Image,
-  TouchableOpacity,
-  ActivityIndicator,
-  StyleSheet,
-  Alert,
-  Platform,
-} from 'react-native';
-import RNFS from 'react-native-fs';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { formatFileSize } from '../../utils/fileUtils';
+import Toast from 'react-native-toast-message';
+import {
+  Camera, useCameraDevice, useCameraPermission,
+} from 'react-native-vision-camera';
+import { pick, types } from '@react-native-documents/picker';
 
-type Props = {
-  visible: boolean;
-  onClose: () => void;
-  // The original picked file info
-  sourceFileName: string;
-  // Result from backend
-  downloadUrl: string | null;
-  previewUrl: string | null;   // null for PDF outputs
-  fileName: string | null;
-  fileSize: number | null;
-  toFormat: string;
-  // State
-  isConverting: boolean;
-  error: string | null;
-};
+export default function ScannerScreen({ navigation }: any) {
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const device = useCameraDevice('back');
+  const camera = useRef<any>(null);
+  const [flash, setFlash] = useState<'off' | 'on'>('off');
+  const [capturing, setCapturing] = useState(false);
 
-export default function ConversionResultModal({
-  visible,
-  onClose,
-  sourceFileName,
-  downloadUrl,
-  previewUrl,
-  fileName,
-  fileSize,
-  toFormat,
-  isConverting,
-  error,
-}: Props) {
-  const [downloading, setDownloading] = useState(false);
-  const [downloaded, setDownloaded] = useState(false);
+  useEffect(() => {
+    if (!hasPermission) requestPermission();
+  }, []);
 
-  // Reset downloaded state when modal closes/opens
-  React.useEffect(() => {
-    if (!visible) setDownloaded(false);
-  }, [visible]);
-
-  const handleDownload = async () => {
-    if (!downloadUrl || !fileName) return;
-    setDownloading(true);
+  const handleCapture = async () => {
+    if (!camera.current) {
+      Toast.show({ type: 'error', text1: 'Camera not ready', text2: 'Please wait and try again' });
+      return;
+    }
     try {
-      // Save to Downloads folder
-      const destPath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
-      const result = await RNFS.downloadFile({
-        fromUrl: downloadUrl,
-        toFile: destPath,
-      }).promise;
-
-      if (result.statusCode === 200) {
-        // Scan file into gallery (Android)
-        if (Platform.OS === 'android') {
-          await RNFS.scanFile(destPath);
-        }
-        setDownloaded(true);
-        Alert.alert(
-          'Saved!',
-          `File saved to Downloads:\n${fileName}`,
-          [{ text: 'OK' }]
-        );
-      } else {
-        throw new Error('Download failed with status ' + result.statusCode);
-      }
-    } catch (err: any) {
-      Alert.alert('Download Failed', err.message || 'Could not save file');
+      setCapturing(true);
+      const photo = await camera.current.takePhoto({ flash });
+      const photoUri = `file://${photo.path}`;
+      navigation.navigate('Tools', { scannedUri: photoUri });
+    } catch (e: any) {
+      Toast.show({ type: 'error', text1: 'Capture Failed', text2: 'Could not capture photo' });
     } finally {
-      setDownloading(false);
+      setCapturing(false);
     }
   };
 
-  const isPDF = toFormat.toUpperCase() === 'PDF';
+  const handlePickFromGallery = async () => {
+    try {
+      const [file] = await pick({ type: [types.images] });
+      if (!file?.uri) {
+        Toast.show({ type: 'info', text1: 'No file selected' });
+        return;
+      }
+      navigation.navigate('Tools', { scannedUri: file.uri });
+    } catch {
+      Toast.show({ type: 'info', text1: 'No file selected' });
+    }
+  };
+
+  if (!hasPermission) {
+    return (
+      <SafeAreaView style={styles.permissionScreen}>
+        <Icon name="camera-off" size={70} color="#E63946" />
+        <Text style={styles.permissionTitle}>Camera Permission Required</Text>
+        <Text style={styles.permissionSub}>We need camera access to scan documents</Text>
+        <TouchableOpacity style={styles.grantBtn} onPress={requestPermission}>
+          <Text style={styles.grantBtnText}>Grant Permission</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  if (!device) {
+    return (
+      <SafeAreaView style={styles.permissionScreen}>
+        <Icon name="camera-off" size={70} color="#E63946" />
+        <Text style={styles.permissionTitle}>No Camera Found</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      statusBarTranslucent
-      onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Document Scanner</Text>
+        <Text style={styles.subtitle}>Align document in frame and capture</Text>
+      </View>
 
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Conversion Result</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Icon name="close" size={20} color="#94a3b8" />
-            </TouchableOpacity>
+      <View style={styles.cameraBox}>
+        <Camera
+          ref={camera}
+          style={StyleSheet.absoluteFill}
+          device={device}
+          isActive={true}
+          // ✅ photo={true} removed — not a valid prop in vision-camera v4
+        />
+        <View style={styles.overlayContainer}>
+          <View style={styles.frame}>
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
           </View>
-
-          {/* Source info */}
-          <View style={styles.sourceRow}>
-            <Icon name="file-outline" size={16} color="#94a3b8" />
-            <Text style={styles.sourceName} numberOfLines={1}>
-              {sourceFileName}
-            </Text>
-            <Icon name="arrow-right" size={16} color="#E63946" />
-            <View style={styles.formatBadge}>
-              <Text style={styles.formatBadgeText}>{toFormat.toUpperCase()}</Text>
-            </View>
-          </View>
-
-          {/* ── CONVERTING STATE ── */}
-          {isConverting && (
-            <View style={styles.centerBox}>
-              <ActivityIndicator size="large" color="#E63946" />
-              <Text style={styles.convertingText}>Converting your file…</Text>
-              <Text style={styles.convertingSubText}>This usually takes a few seconds</Text>
-            </View>
-          )}
-
-          {/* ── ERROR STATE ── */}
-          {!isConverting && error && (
-            <View style={styles.centerBox}>
-              <Icon name="alert-circle-outline" size={56} color="#E63946" />
-              <Text style={styles.errorTitle}>Conversion Failed</Text>
-              <Text style={styles.errorMsg}>{error}</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={onClose}>
-                <Text style={styles.retryText}>Try Again</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ── SUCCESS STATE ── */}
-          {!isConverting && !error && downloadUrl && (
-            <>
-              {/* Preview */}
-              <View style={styles.previewBox}>
-                {previewUrl && !isPDF ? (
-                  <Image
-                    source={{ uri: previewUrl }}
-                    style={styles.previewImage}
-                    resizeMode="contain"
-                  />
-                ) : (
-                  // PDF or no preview — show icon
-                  <View style={styles.pdfPreview}>
-                    <Icon name="file-pdf-box" size={72} color="#E63946" />
-                    <Text style={styles.pdfPreviewText}>PDF Document</Text>
-                    {fileName && (
-                      <Text style={styles.pdfFileName} numberOfLines={2}>
-                        {fileName}
-                      </Text>
-                    )}
-                  </View>
-                )}
-              </View>
-
-              {/* File info */}
-              {fileSize !== null && (
-                <View style={styles.infoRow}>
-                  <View style={styles.infoItem}>
-                    <Icon name="file-check-outline" size={18} color="#1D9E75" />
-                    <Text style={styles.infoLabel}>Converted</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Icon name="database-outline" size={18} color="#457B9D" />
-                    <Text style={styles.infoLabel}>{formatFileSize(fileSize)}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Icon name="image-outline" size={18} color="#94a3b8" />
-                    <Text style={styles.infoLabel}>{toFormat.toUpperCase()}</Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Download button */}
-              <TouchableOpacity
-                style={[styles.downloadBtn, downloaded && styles.downloadedBtn]}
-                onPress={handleDownload}
-                disabled={downloading || downloaded}>
-                {downloading ? (
-                  <ActivityIndicator color="white" size="small" />
-                ) : downloaded ? (
-                  <>
-                    <Icon name="check-circle" size={20} color="white" />
-                    <Text style={styles.downloadBtnText}>Saved to Gallery</Text>
-                  </>
-                ) : (
-                  <>
-                    <Icon name="download" size={20} color="white" />
-                    <Text style={styles.downloadBtnText}>Download & Save to Gallery</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.convertAnotherBtn} onPress={onClose}>
-                <Text style={styles.convertAnotherText}>Convert Another File</Text>
-              </TouchableOpacity>
-            </>
-          )}
-
         </View>
       </View>
-    </Modal>
+
+      <View style={styles.controls}>
+        <TouchableOpacity style={styles.controlBtn} onPress={handlePickFromGallery}>
+          <Icon name="image-multiple" size={24} color="white" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={handleCapture}
+          style={[styles.captureBtn, capturing && { opacity: 0.6 }]}
+          disabled={capturing}>
+          <Icon name="camera" size={36} color="white" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.controlBtn}
+          onPress={() => setFlash(f => (f === 'off' ? 'on' : 'off'))}>
+          <Icon name={flash === 'on' ? 'flash' : 'flash-off'} size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.7)',
+  safeArea: { flex: 1, backgroundColor: '#0D1B2A' },
+  permissionScreen: {
+    flex: 1, backgroundColor: '#0D1B2A',
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24,
   },
-  sheet: {
-    backgroundColor: '#1D3557',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    paddingTop: 20,
-    maxHeight: '90%',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  title: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  closeBtn: {
-    backgroundColor: '#0D1B2A',
-    padding: 8,
-    borderRadius: 99,
-  },
-  sourceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0D1B2A',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    gap: 8,
-  },
-  sourceName: {
-    color: '#94a3b8',
-    fontSize: 13,
-    flex: 1,
-  },
-  formatBadge: {
-    backgroundColor: '#E63946',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  formatBadgeText: {
-    color: 'white',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  centerBox: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    gap: 12,
-  },
-  convertingText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 8,
-  },
-  convertingSubText: {
-    color: '#94a3b8',
-    fontSize: 13,
-  },
-  errorTitle: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 8,
-  },
-  errorMsg: {
-    color: '#94a3b8',
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  retryBtn: {
-    backgroundColor: '#E63946',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 99,
-    marginTop: 8,
-  },
-  retryText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  previewBox: {
-    backgroundColor: '#0D1B2A',
-    borderRadius: 16,
-    overflow: 'hidden',
-    height: 240,
-    marginBottom: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewImage: {
-    width: '100%',
-    height: '100%',
-  },
-  pdfPreview: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  pdfPreviewText: {
-    color: '#94a3b8',
-    fontSize: 14,
-  },
-  pdfFileName: {
-    color: '#64748b',
-    fontSize: 12,
-    textAlign: 'center',
-    paddingHorizontal: 24,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#0D1B2A',
-    borderRadius: 12,
-    paddingVertical: 14,
-    marginBottom: 16,
-  },
-  infoItem: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  infoLabel: {
-    color: '#94a3b8',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  downloadBtn: {
-    backgroundColor: '#E63946',
-    borderRadius: 14,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  downloadedBtn: {
-    backgroundColor: '#1D9E75',
-  },
-  downloadBtnText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  convertAnotherBtn: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  convertAnotherText: {
-    color: '#94a3b8',
-    fontWeight: '600',
-    fontSize: 14,
-  },
+  permissionTitle: { color: 'white', fontSize: 20, fontWeight: 'bold', marginTop: 24, textAlign: 'center' },
+  permissionSub: { color: '#94a3b8', fontSize: 14, marginTop: 8, textAlign: 'center' },
+  grantBtn: { backgroundColor: '#E63946', paddingHorizontal: 32, paddingVertical: 16, borderRadius: 999, marginTop: 24 },
+  grantBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  title: { fontSize: 24, fontWeight: 'bold', color: 'white' },
+  subtitle: { color: '#94a3b8', fontSize: 14, marginTop: 4 },
+  cameraBox: { flex: 1, marginHorizontal: 16, borderRadius: 24, overflow: 'hidden', backgroundColor: '#1D3557' },
+  overlayContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  frame: { width: 288, height: 384, position: 'relative' },
+  corner: { position: 'absolute', width: 32, height: 32, borderColor: '#E63946', borderWidth: 2 },
+  topLeft: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 8 },
+  topRight: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 8 },
+  bottomLeft: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 8 },
+  bottomRight: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 8 },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingVertical: 24, paddingHorizontal: 32 },
+  controlBtn: { backgroundColor: '#1D3557', padding: 16, borderRadius: 999 },
+  captureBtn: { backgroundColor: '#E63946', width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
 });

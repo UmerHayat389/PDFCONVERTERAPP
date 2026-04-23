@@ -26,14 +26,38 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
 	<key>NSAppTransportSecurity</key>
 	<dict>
-	  <!-- Do not change NSAllowsArbitraryLoads to true, or you will risk app rejection! -->
+		<!-- Do not change NSAllowsArbitraryLoads to true, or you will risk app rejection! -->
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+
+	<!-- ✅ ADD 1: Camera — required for react-native-vision-camera -->
+	<key>NSCameraUsageDescription</key>
+	<string>PDFConverterApp needs camera access to scan documents</string>
+
+	<!-- ✅ ADD 2: Photo Library read — required for image picker -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>PDFConverterApp needs photo library access to pick images for conversion</string>
+
+	<!-- ✅ ADD 3: Photo Library write — required to save converted files -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>PDFConverterApp needs permission to save converted files to your photo library</string>
+
+	<!-- ✅ ADD 4: Microphone — vision-camera requires this even if you don't use audio -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>PDFConverterApp needs microphone access for video recording features</string>
+
+	<!-- ✅ ADD 5: File access — required for document picker and rn-fetch-blob -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
 	<key>UILaunchStoryboardName</key>

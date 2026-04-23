@@ -13,7 +13,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { CONVERSIONS } from '../utils/constants';
 import { ConversionType } from '../types';
 import { convertFile, ConversionResult } from '../services/conversionService';
-import { getFileExtension } from '../utils/fileUtils';
+// ✅ FIX 1: Removed unused getFileExtension import
 import FilePickerModal from '../components/converter/FilePickerModal';
 import ConversionResultModal from '../components/converter/ConversionResultModal';
 
@@ -21,14 +21,8 @@ const CATEGORIES = ['All', 'Image', 'PDF', 'Document'];
 
 export default function ToolsScreen() {
   const [activeCategory, setActiveCategory] = useState('All');
-
-  // Which conversion tool was tapped
   const [activeTool, setActiveTool] = useState<ConversionType | null>(null);
-
-  // FilePickerModal — choose gallery vs files
   const [pickerVisible, setPickerVisible] = useState(false);
-
-  // ConversionResultModal state
   const [resultVisible, setResultVisible] = useState(false);
   const [sourceFileName, setSourceFileName] = useState('');
   const [isConverting, setIsConverting] = useState(false);
@@ -39,24 +33,20 @@ export default function ToolsScreen() {
     activeCategory === 'All' ? true : c.category === activeCategory.toLowerCase(),
   );
 
-  // Step 1: user taps a conversion card
   const handleCardPress = (tool: ConversionType) => {
     setActiveTool(tool);
     setPickerVisible(true);
   };
 
-  // Step 2a: pick from Files
   const handlePickFile = async () => {
     setPickerVisible(false);
     if (!activeTool) return;
 
     try {
       const [picked] = await pick({ type: [types.allFiles] });
-
       const uri = picked.uri;
       const name = picked.name ?? uri.split('/').pop() ?? 'file';
       const mime = picked.type ?? 'application/octet-stream';
-
       await startConversion(uri, name, mime, activeTool);
     } catch (e: any) {
       if (e?.code !== errorCodes.OPERATION_CANCELED) {
@@ -65,7 +55,6 @@ export default function ToolsScreen() {
     }
   };
 
-  // Step 2b: pick from Gallery
   const handlePickImage = async () => {
     setPickerVisible(false);
     if (!activeTool) return;
@@ -78,27 +67,22 @@ export default function ToolsScreen() {
           showError(response.errorMessage ?? 'Gallery error');
           return;
         }
-
         const asset = response.assets?.[0];
         if (!asset?.uri) return;
-
         const uri = asset.uri;
         const name = asset.fileName ?? uri.split('/').pop() ?? 'image.jpg';
         const mime = asset.type ?? 'image/jpeg';
-
         await startConversion(uri, name, mime, activeTool);
       },
     );
   };
 
-  // Step 3: call backend, show result modal
   const startConversion = async (
     uri: string,
     name: string,
     mime: string,
     tool: ConversionType,
   ) => {
-    // Open modal immediately in "converting" state
     setSourceFileName(name);
     setIsConverting(true);
     setConversionError(null);
@@ -130,7 +114,6 @@ export default function ToolsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Conversion Tools</Text>
         <View style={styles.categories}>
@@ -148,13 +131,13 @@ export default function ToolsScreen() {
         </View>
       </View>
 
-      {/* Conversion grid */}
       <FlatList
         data={filtered}
         keyExtractor={(item: ConversionType) => item.id}
         numColumns={2}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-        columnWrapperStyle={{ gap: 12 }}
+        // ✅ FIX 2: Removed gap from contentContainerStyle — use marginBottom on columnWrapper instead
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+        columnWrapperStyle={{ gap: 12, marginBottom: 12 }}
         renderItem={({ item }: { item: ConversionType }) => (
           <TouchableOpacity
             onPress={() => handleCardPress(item)}
@@ -166,7 +149,6 @@ export default function ToolsScreen() {
         )}
       />
 
-      {/* Step 2: picker modal (gallery vs files) */}
       <FilePickerModal
         visible={pickerVisible}
         onClose={() => setPickerVisible(false)}
@@ -174,7 +156,6 @@ export default function ToolsScreen() {
         onPickImage={handlePickImage}
       />
 
-      {/* Step 3: conversion result modal */}
       <ConversionResultModal
         visible={resultVisible}
         onClose={handleResultClose}
@@ -192,40 +173,13 @@ export default function ToolsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#0D1B2A',
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 16,
-  },
-  categories: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  categoryBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: '#1D3557',
-  },
-  categoryBtnActive: {
-    backgroundColor: '#E63946',
-  },
-  categoryText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
+  safeArea: { flex: 1, backgroundColor: '#0D1B2A' },
+  header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  title: { fontSize: 24, fontWeight: 'bold', color: 'white', marginBottom: 16 },
+  categories: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  categoryBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, backgroundColor: '#1D3557' },
+  categoryBtnActive: { backgroundColor: '#E63946' },
+  categoryText: { color: 'white', fontSize: 12, fontWeight: '600' },
   toolCard: {
     flex: 1,
     backgroundColor: '#1D3557',
@@ -235,16 +189,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 110,
   },
-  toolLabel: {
-    color: 'white',
-    fontWeight: 'bold',
-    marginTop: 8,
-    textAlign: 'center',
-    fontSize: 13,
-  },
-  toolSub: {
-    color: '#94a3b8',
-    fontSize: 11,
-    marginTop: 4,
-  },
+  toolLabel: { color: 'white', fontWeight: 'bold', marginTop: 8, textAlign: 'center', fontSize: 13 },
+  toolSub: { color: '#94a3b8', fontSize: 11, marginTop: 4 },
 });

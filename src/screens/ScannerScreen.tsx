@@ -1,36 +1,47 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Toast from 'react-native-toast-message';
 import {
-  Camera, useCameraDevice, useCameraPermission,
+  Camera,
+  CameraRef,           // ✅ V5: correct type for useRef, Camera is only the component
+  useCameraDevice,
+  useCameraPermission,
+  usePhotoOutput,
 } from 'react-native-vision-camera';
 import { pick, types } from '@react-native-documents/picker';
 
 export default function ScannerScreen({ navigation }: any) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
-  const camera = useRef<any>(null);
+  const camera = useRef<CameraRef>(null);
+  const photoOutput = usePhotoOutput();          // ✅ V5 hook
   const [flash, setFlash] = useState<'off' | 'on'>('off');
   const [capturing, setCapturing] = useState(false);
 
   useEffect(() => {
     if (!hasPermission) requestPermission();
-  }, []);
+  }, [hasPermission]);
 
   const handleCapture = async () => {
-    if (!camera.current) {
-      Toast.show({ type: 'error', text1: 'Camera not ready', text2: 'Please wait and try again' });
-      return;
-    }
     try {
       setCapturing(true);
-      const photo = await camera.current.takePhoto({ flash });
-      const photoUri = `file://${photo.path}`;
-      navigation.navigate('Tools', { scannedUri: photoUri });
+
+      // ✅ V5: capturePhotoToFile saves to disk and returns { filePath }
+      // This avoids the in-memory Photo type entirely (no .path / .uri confusion)
+      const { filePath } = await photoOutput.capturePhotoToFile(
+        { flashMode: flash },   // ✅ V5: prop is 'flashMode', not 'flash'
+        {}
+      );
+
+      navigation.navigate('Tools', { scannedUri: filePath });
     } catch (e: any) {
-      Toast.show({ type: 'error', text1: 'Capture Failed', text2: 'Could not capture photo' });
+      Toast.show({
+        type: 'error',
+        text1: 'Capture Failed',
+        text2: e?.message ?? 'Could not capture photo',
+      });
     } finally {
       setCapturing(false);
     }
@@ -84,9 +95,8 @@ export default function ScannerScreen({ navigation }: any) {
           style={StyleSheet.absoluteFill}
           device={device}
           isActive={true}
-          // ← photo={true} removed, not needed in v4
+          outputs={[photoOutput]}   // ✅ V5: pass output object here
         />
-        {/* Scanner Frame */}
         <View style={styles.overlayContainer}>
           <View style={styles.frame}>
             <View style={[styles.corner, styles.topLeft]} />
@@ -121,10 +131,7 @@ export default function ScannerScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#0D1B2A' },
-  permissionScreen: {
-    flex: 1, backgroundColor: '#0D1B2A',
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24,
-  },
+  permissionScreen: { flex: 1, backgroundColor: '#0D1B2A', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   permissionTitle: { color: 'white', fontSize: 20, fontWeight: 'bold', marginTop: 24, textAlign: 'center' },
   permissionSub: { color: '#94a3b8', fontSize: 14, marginTop: 8, textAlign: 'center' },
   grantBtn: { backgroundColor: '#E63946', paddingHorizontal: 32, paddingVertical: 16, borderRadius: 999, marginTop: 24 },

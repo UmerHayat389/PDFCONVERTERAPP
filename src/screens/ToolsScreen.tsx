@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,17 +9,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { pick, types, errorCodes } from '@react-native-documents/picker';
 import { launchImageLibrary } from 'react-native-image-picker';
+import Toast from 'react-native-toast-message';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { CONVERSIONS } from '../utils/constants';
 import { ConversionType } from '../types';
 import { convertFile, ConversionResult } from '../services/conversionService';
-// ✅ FIX 1: Removed unused getFileExtension import
 import FilePickerModal from '../components/converter/FilePickerModal';
 import ConversionResultModal from '../components/converter/ConversionResultModal';
 
 const CATEGORIES = ['All', 'Image', 'PDF', 'Document'];
 
-export default function ToolsScreen() {
+export default function ToolsScreen({ route }: any) {
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeTool, setActiveTool] = useState<ConversionType | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -28,6 +28,23 @@ export default function ToolsScreen() {
   const [isConverting, setIsConverting] = useState(false);
   const [conversionError, setConversionError] = useState<string | null>(null);
   const [conversionResult, setConversionResult] = useState<ConversionResult | null>(null);
+
+  // ✅ FIX: consume scannedUri that ScannerScreen passes via navigation.navigate('Tools', {...})
+  // When user scans a doc and lands here, open the file picker modal automatically.
+  useEffect(() => {
+    const scannedUri: string | undefined = route?.params?.scannedUri;
+    if (scannedUri) {
+      // Pre-select Image→PDF as the most logical tool for a scanned document
+      const imgToPdfTool = CONVERSIONS.find(c => c.id === '9');
+      if (imgToPdfTool) {
+        setActiveTool(imgToPdfTool);
+        // Auto-start conversion with the scanned image (it's already a local file URI)
+        const name = scannedUri.split('/').pop() ?? 'scanned.jpg';
+        startConversion(scannedUri, name, 'image/jpeg', imgToPdfTool);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route?.params?.scannedUri]);
 
   const filtered = CONVERSIONS.filter(c =>
     activeCategory === 'All' ? true : c.category === activeCategory.toLowerCase(),
@@ -38,45 +55,46 @@ export default function ToolsScreen() {
     setPickerVisible(true);
   };
 
+  // ─── Pick file from Files app ───────────────────────────────────────────────
   const handlePickFile = async () => {
     setPickerVisible(false);
     if (!activeTool) return;
 
     try {
       const [picked] = await pick({ type: [types.allFiles] });
-      const uri = picked.uri;
+      const uri  = picked.uri;
       const name = picked.name ?? uri.split('/').pop() ?? 'file';
       const mime = picked.type ?? 'application/octet-stream';
       await startConversion(uri, name, mime, activeTool);
     } catch (e: any) {
       if (e?.code !== errorCodes.OPERATION_CANCELED) {
-        showError('Could not open file picker.');
+        Toast.show({ type: 'error', text1: 'Could not open file picker.' });
       }
     }
   };
 
+  // ─── Pick from Gallery ──────────────────────────────────────────────────────
   const handlePickImage = async () => {
     setPickerVisible(false);
     if (!activeTool) return;
 
-    launchImageLibrary(
-      { mediaType: 'photo', quality: 1 },
-      async response => {
-        if (response.didCancel) return;
-        if (response.errorCode) {
-          showError(response.errorMessage ?? 'Gallery error');
-          return;
-        }
-        const asset = response.assets?.[0];
-        if (!asset?.uri) return;
-        const uri = asset.uri;
-        const name = asset.fileName ?? uri.split('/').pop() ?? 'image.jpg';
-        const mime = asset.type ?? 'image/jpeg';
-        await startConversion(uri, name, mime, activeTool);
-      },
-    );
+    launchImageLibrary({ mediaType: 'photo', quality: 1 }, async response => {
+      if (response.didCancel) return;
+      if (response.errorCode) {
+        Toast.show({ type: 'error', text1: response.errorMessage ?? 'Gallery error' });
+        return;
+      }
+      const asset = response.assets?.[0];
+      if (!asset?.uri) return;
+
+      const uri  = asset.uri;
+      const name = asset.fileName ?? uri.split('/').pop() ?? 'image.jpg';
+      const mime = asset.type ?? 'image/jpeg';
+      await startConversion(uri, name, mime, activeTool);
+    });
   };
 
+  // ─── Core conversion flow ───────────────────────────────────────────────────
   const startConversion = async (
     uri: string,
     name: string,
@@ -84,25 +102,49 @@ export default function ToolsScreen() {
     tool: ConversionType,
   ) => {
     setSourceFileName(name);
-    setIsConverting(true);
     setConversionError(null);
     setConversionResult(null);
+    setIsConverting(true);
     setResultVisible(true);
 
     try {
+      // convertFile now does the extension check internally and throws
+      // with a user-readable message for 'already' and 'mismatch' cases.
       const result = await convertFile(uri, tool.from, tool.to, mime);
       setConversionResult(result);
     } catch (err: any) {
-      setConversionError(err.message ?? 'Conversion failed. Please try again.');
+      const msg: string = err.message ?? 'Conversion failed. Please try again.';
+
+      // ✅ If it's an "already in this format" error, show a friendly toast
+      // instead of the full error modal.
+      if (msg.toLowerCase().includes('already')) {
+        setResultVisible(false);
+        Toast.show({
+          type: 'info',
+          text1: 'Already converted ✓',
+          text2: msg,
+          visibilityTime: 4000,
+        });
+        return;
+      }
+
+      // ✅ Wrong file type — also show as toast (user-friendly)
+      if (msg.toLowerCase().includes('wrong file type')) {
+        setResultVisible(false);
+        Toast.show({
+          type: 'error',
+          text1: 'Wrong file type',
+          text2: msg,
+          visibilityTime: 5000,
+        });
+        return;
+      }
+
+      // All other errors go in the result modal
+      setConversionError(msg);
     } finally {
       setIsConverting(false);
     }
-  };
-
-  const showError = (msg: string) => {
-    setConversionError(msg);
-    setIsConverting(false);
-    setResultVisible(true);
   };
 
   const handleResultClose = () => {
@@ -112,6 +154,7 @@ export default function ToolsScreen() {
     setActiveTool(null);
   };
 
+  // ─── UI ─────────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
@@ -135,7 +178,6 @@ export default function ToolsScreen() {
         data={filtered}
         keyExtractor={(item: ConversionType) => item.id}
         numColumns={2}
-        // ✅ FIX 2: Removed gap from contentContainerStyle — use marginBottom on columnWrapper instead
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         columnWrapperStyle={{ gap: 12, marginBottom: 12 }}
         renderItem={({ item }: { item: ConversionType }) => (
@@ -177,7 +219,12 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
   title: { fontSize: 24, fontWeight: 'bold', color: 'white', marginBottom: 16 },
   categories: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  categoryBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, backgroundColor: '#1D3557' },
+  categoryBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#1D3557',
+  },
   categoryBtnActive: { backgroundColor: '#E63946' },
   categoryText: { color: 'white', fontSize: 12, fontWeight: '600' },
   toolCard: {
@@ -189,6 +236,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 110,
   },
-  toolLabel: { color: 'white', fontWeight: 'bold', marginTop: 8, textAlign: 'center', fontSize: 13 },
+  toolLabel: {
+    color: 'white',
+    fontWeight: 'bold',
+    marginTop: 8,
+    textAlign: 'center',
+    fontSize: 13,
+  },
   toolSub: { color: '#94a3b8', fontSize: 11, marginTop: 4 },
 });

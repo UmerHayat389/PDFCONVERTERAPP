@@ -1,145 +1,289 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React from 'react';
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  ActivityIndicator,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Platform,
+  PermissionsAndroid,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Toast from 'react-native-toast-message';
-import {
-  Camera, useCameraDevice, useCameraPermission,
-} from 'react-native-vision-camera';
-import { pick, types } from '@react-native-documents/picker';
+import RNFS from 'react-native-fs';
+import { formatFileSize } from '../../utils/fileUtils';
 
-export default function ScannerScreen({ navigation }: any) {
-  const { hasPermission, requestPermission } = useCameraPermission();
-  const device = useCameraDevice('back');
-  const camera = useRef<any>(null);
-  const [flash, setFlash] = useState<'off' | 'on'>('off');
-  const [capturing, setCapturing] = useState(false);
+type Props = {
+  visible:        boolean;
+  onClose:        () => void;
+  sourceFileName: string;
+  toFormat:       string;
+  isConverting:   boolean;
+  error:          string | null;
+  downloadUrl:    string | null;
+  previewUrl:     string | null;
+  fileName:       string | null;
+  fileSize:       number | null;
+};
 
-  useEffect(() => {
-    if (!hasPermission) requestPermission();
-  }, []);
+export default function ConversionResultModal({
+  visible,
+  onClose,
+  sourceFileName,
+  toFormat,
+  isConverting,
+  error,
+  downloadUrl,
+  previewUrl,
+  fileName,
+  fileSize,
+}: Props) {
 
-  const handleCapture = async () => {
-    if (!camera.current) {
-      Toast.show({ type: 'error', text1: 'Camera not ready', text2: 'Please wait and try again' });
-      return;
-    }
+  // ─── Direct download to phone ─────────────────────────────────────────────
+  const handleDownload = async () => {
+    if (!downloadUrl) return;
+
     try {
-      setCapturing(true);
-      const photo = await camera.current.takePhoto({ flash });
-      const photoUri = `file://${photo.path}`;
-      navigation.navigate('Tools', { scannedUri: photoUri });
-    } catch (e: any) {
-      Toast.show({ type: 'error', text1: 'Capture Failed', text2: 'Could not capture photo' });
-    } finally {
-      setCapturing(false);
-    }
-  };
-
-  const handlePickFromGallery = async () => {
-    try {
-      const [file] = await pick({ type: [types.images] });
-      if (!file?.uri) {
-        Toast.show({ type: 'info', text1: 'No file selected' });
-        return;
+      // ✅ Request storage permission on Android < 13
+      if (Platform.OS === 'android' && Platform.Version < 33) {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Toast.show({ type: 'error', text1: 'Storage permission denied.' });
+          return;
+        }
       }
-      navigation.navigate('Tools', { scannedUri: file.uri });
-    } catch {
-      Toast.show({ type: 'info', text1: 'No file selected' });
+
+      const destFileName = fileName ?? `converted_${Date.now()}.${toFormat.toLowerCase()}`;
+
+      // ✅ Images → Pictures folder (shows in Gallery)
+      // ✅ Other files → Downloads folder
+      const isImage = ['jpg', 'jpeg', 'png', 'webp', 'bmp'].includes(
+        toFormat.toLowerCase(),
+      );
+      const destDir = isImage
+        ? RNFS.PicturesDirectoryPath
+        : RNFS.DownloadDirectoryPath;
+
+      const destPath = `${destDir}/${destFileName}`;
+
+      Toast.show({ type: 'info', text1: '⏳ Downloading…', visibilityTime: 2000 });
+
+      const result = await RNFS.downloadFile({
+        fromUrl: downloadUrl,
+        toFile: destPath,
+        background: true,
+        discretionary: true,
+        cacheable: false,
+      }).promise;
+
+      if (result.statusCode === 200) {
+        // ✅ Trigger media scan so file appears in Gallery immediately
+        if (Platform.OS === 'android') {
+          await RNFS.scanFile(destPath);
+        }
+        Toast.show({
+          type: 'success',
+          text1: '✓ Downloaded!',
+          text2: isImage
+            ? `Saved to Gallery`
+            : `Saved to Downloads/${destFileName}`,
+          visibilityTime: 4000,
+        });
+      } else {
+        throw new Error(`Download failed with status ${result.statusCode}`);
+      }
+    } catch (err: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Download failed',
+        text2: err.message ?? 'Please try again.',
+      });
     }
   };
 
-  if (!hasPermission) {
-    return (
-      <SafeAreaView style={styles.permissionScreen}>
-        <Icon name="camera-off" size={70} color="#E63946" />
-        <Text style={styles.permissionTitle}>Camera Permission Required</Text>
-        <Text style={styles.permissionSub}>We need camera access to scan documents</Text>
-        <TouchableOpacity style={styles.grantBtn} onPress={requestPermission}>
-          <Text style={styles.grantBtnText}>Grant Permission</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
+  // ─── Converting spinner ───────────────────────────────────────────────────
+  const renderConverting = () => (
+    <View style={styles.stateContainer}>
+      <ActivityIndicator size="large" color="#E63946" />
+      <Text style={styles.stateTitle}>Converting…</Text>
+      <Text style={styles.stateSub}>
+        Converting <Text style={styles.bold}>{sourceFileName}</Text> to{' '}
+        <Text style={styles.bold}>.{toFormat.toUpperCase()}</Text>
+      </Text>
+    </View>
+  );
 
-  if (!device) {
-    return (
-      <SafeAreaView style={styles.permissionScreen}>
-        <Icon name="camera-off" size={70} color="#E63946" />
-        <Text style={styles.permissionTitle}>No Camera Found</Text>
-      </SafeAreaView>
-    );
-  }
+  // ─── Error state ──────────────────────────────────────────────────────────
+  const renderError = () => (
+    <View style={styles.stateContainer}>
+      <View style={styles.iconCircle}>
+        <Icon name="alert-circle-outline" size={48} color="#E63946" />
+      </View>
+      <Text style={styles.stateTitle}>Conversion Failed</Text>
+      <Text style={styles.errorText}>{error}</Text>
+      <TouchableOpacity style={styles.primaryBtn} onPress={onClose}>
+        <Text style={styles.primaryBtnText}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Document Scanner</Text>
-        <Text style={styles.subtitle}>Align document in frame and capture</Text>
+  // ─── Success state ────────────────────────────────────────────────────────
+  const renderSuccess = () => (
+    <ScrollView contentContainerStyle={styles.successContainer}>
+      <View style={[styles.iconCircle, styles.iconCircleSuccess]}>
+        <Icon name="check-circle-outline" size={48} color="#22c55e" />
       </View>
 
-      <View style={styles.cameraBox}>
-        <Camera
-          ref={camera}
-          style={StyleSheet.absoluteFill}
-          device={device}
-          isActive={true}
-          // ✅ photo={true} removed — not a valid prop in vision-camera v4
-        />
-        <View style={styles.overlayContainer}>
-          <View style={styles.frame}>
-            <View style={[styles.corner, styles.topLeft]} />
-            <View style={[styles.corner, styles.topRight]} />
-            <View style={[styles.corner, styles.bottomLeft]} />
-            <View style={[styles.corner, styles.bottomRight]} />
+      <Text style={styles.stateTitle}>Conversion Complete!</Text>
+
+      <View style={styles.infoBox}>
+        <View style={styles.infoRow}>
+          <Icon name="file-outline" size={18} color="#94a3b8" />
+          <Text style={styles.infoLabel}>File</Text>
+          <Text style={styles.infoValue} numberOfLines={1}>
+            {fileName ?? sourceFileName}
+          </Text>
+        </View>
+        {fileSize != null && (
+          <View style={styles.infoRow}>
+            <Icon name="scale" size={18} color="#94a3b8" />
+            <Text style={styles.infoLabel}>Size</Text>
+            <Text style={styles.infoValue}>{formatFileSize(fileSize)}</Text>
           </View>
+        )}
+        <View style={styles.infoRow}>
+          <Icon name="arrow-right-circle-outline" size={18} color="#94a3b8" />
+          <Text style={styles.infoLabel}>Format</Text>
+          <Text style={styles.infoValue}>.{toFormat.toUpperCase()}</Text>
         </View>
       </View>
 
-      <View style={styles.controls}>
-        <TouchableOpacity style={styles.controlBtn} onPress={handlePickFromGallery}>
-          <Icon name="image-multiple" size={24} color="white" />
-        </TouchableOpacity>
+      {previewUrl && (
+        <View style={styles.previewContainer}>
+          <Text style={styles.previewLabel}>Preview</Text>
+          <Image
+            source={{ uri: previewUrl }}
+            style={styles.previewImage}
+            resizeMode="contain"
+          />
+        </View>
+      )}
 
-        <TouchableOpacity
-          onPress={handleCapture}
-          style={[styles.captureBtn, capturing && { opacity: 0.6 }]}
-          disabled={capturing}>
-          <Icon name="camera" size={36} color="white" />
-        </TouchableOpacity>
+      <TouchableOpacity style={styles.primaryBtn} onPress={handleDownload}>
+        <Icon name="download" size={20} color="white" style={styles.btnIcon} />
+        <Text style={styles.primaryBtnText}>Download to Phone</Text>
+      </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.controlBtn}
-          onPress={() => setFlash(f => (f === 'off' ? 'on' : 'off'))}>
-          <Icon name={flash === 'on' ? 'flash' : 'flash-off'} size={24} color="white" />
-        </TouchableOpacity>
+      <TouchableOpacity style={styles.secondaryBtn} onPress={onClose}>
+        <Text style={styles.secondaryBtnText}>Convert Another File</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  return (
+    <Modal
+      transparent
+      animationType="slide"
+      visible={visible}
+      onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={styles.sheet}>
+          {!isConverting && (
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+              <Icon name="close" size={22} color="#94a3b8" />
+            </TouchableOpacity>
+          )}
+          {isConverting && renderConverting()}
+          {!isConverting && error && renderError()}
+          {!isConverting && !error && downloadUrl && renderSuccess()}
+        </View>
       </View>
-    </SafeAreaView>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#0D1B2A' },
-  permissionScreen: {
-    flex: 1, backgroundColor: '#0D1B2A',
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24,
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
-  permissionTitle: { color: 'white', fontSize: 20, fontWeight: 'bold', marginTop: 24, textAlign: 'center' },
-  permissionSub: { color: '#94a3b8', fontSize: 14, marginTop: 8, textAlign: 'center' },
-  grantBtn: { backgroundColor: '#E63946', paddingHorizontal: 32, paddingVertical: 16, borderRadius: 999, marginTop: 24 },
-  grantBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
-  header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  title: { fontSize: 24, fontWeight: 'bold', color: 'white' },
-  subtitle: { color: '#94a3b8', fontSize: 14, marginTop: 4 },
-  cameraBox: { flex: 1, marginHorizontal: 16, borderRadius: 24, overflow: 'hidden', backgroundColor: '#1D3557' },
-  overlayContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  frame: { width: 288, height: 384, position: 'relative' },
-  corner: { position: 'absolute', width: 32, height: 32, borderColor: '#E63946', borderWidth: 2 },
-  topLeft: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 8 },
-  topRight: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 8 },
-  bottomLeft: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 8 },
-  bottomRight: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 8 },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingVertical: 24, paddingHorizontal: 32 },
-  controlBtn: { backgroundColor: '#1D3557', padding: 16, borderRadius: 999 },
-  captureBtn: { backgroundColor: '#E63946', width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
+  sheet: {
+    backgroundColor: '#1D3557',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 40,
+    minHeight: 320,
+  },
+  closeBtn:         { alignSelf: 'flex-end', padding: 8, marginBottom: 4 },
+  stateContainer:   { alignItems: 'center', paddingVertical: 24 },
+  successContainer: { alignItems: 'center', paddingVertical: 8 },
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#0D1B2A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  iconCircleSuccess: { backgroundColor: 'rgba(34,197,94,0.1)' },
+  stateTitle: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  stateSub:  { color: '#94a3b8', fontSize: 14, textAlign: 'center', marginTop: 8 },
+  bold:      { color: 'white', fontWeight: '600' },
+  errorText: {
+    color: '#f87171',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  infoBox: {
+    width: '100%',
+    backgroundColor: '#0D1B2A',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    gap: 12,
+  },
+  infoRow:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  infoLabel: { color: '#94a3b8', fontSize: 13, width: 52 },
+  infoValue: { color: 'white', fontSize: 13, flex: 1, fontWeight: '600' },
+  previewContainer: { width: '100%', marginBottom: 20 },
+  previewLabel:     { color: '#94a3b8', fontSize: 12, marginBottom: 8 },
+  previewImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: '#0D1B2A',
+  },
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E63946',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    width: '100%',
+    marginBottom: 12,
+  },
+  primaryBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  btnIcon:        { marginRight: 8 },
+  secondaryBtn:   { alignItems: 'center', paddingVertical: 12 },
+  secondaryBtnText: { color: '#94a3b8', fontWeight: '600', fontSize: 14 },
 });

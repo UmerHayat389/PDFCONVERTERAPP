@@ -1,25 +1,33 @@
-export type ConversionType = {
+export type SupportedExt =
+  | 'JPG' | 'JPEG' | 'PNG' | 'WEBP' | 'BMP' | 'GIF'
+  | 'PDF'
+  | 'TXT' | 'DOCX';
+
+export interface ConversionType {
   id: string;
-  from: string;
-  to: string;
   label: string;
   icon: string;
-  category: 'image' | 'document' | 'pdf';
-};
+  from: string[];
+  to: string;
+  category: 'image' | 'pdf' | 'document';
+}
 
-export type FileItem = {
+export interface FileItem {
   id: string;
   name: string;
   uri: string;
   size: number;
-  type: string;
-  convertedUri?: string;
-  createdAt?: string;
-};
+  mimeType: string;
+  extension: string;
+  convertedAt: string;
+  fromFormat: string;
+  toFormat: string;
+  outputUri: string;
+}
 
 export type TabParamList = {
   Home: undefined;
-  Tools: undefined;
+  Tools: { scannedUri?: string } | undefined;
   Scanner: undefined;
   Settings: undefined;
 };

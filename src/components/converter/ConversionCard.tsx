@@ -1,19 +1,22 @@
 import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import {
+  TouchableOpacity,
+  Text,
+  ActivityIndicator,
+  StyleSheet,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { ConversionType } from '../../types';
 
 type Props = {
-  item: ConversionType;
-  onPress: (item: ConversionType) => void;
+  item:         ConversionType;
+  onPress:      (item: ConversionType) => void;
   isConverting: boolean;
 };
 
 export default function ConversionCard({ item, onPress, isConverting }: Props) {
   return (
-    <TouchableOpacity
-      onPress={() => onPress(item)}
-      style={styles.card}>
+    <TouchableOpacity onPress={() => onPress(item)} style={styles.card}>
       {isConverting ? (
         <ActivityIndicator color="#E63946" />
       ) : (

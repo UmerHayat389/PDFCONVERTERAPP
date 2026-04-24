@@ -25,23 +25,23 @@ export default function TabNavigator() {
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         tabBarIcon: ({ color, size }: { color: string; size: number }) => {
           const icons: Record<string, string> = {
-            Home: 'home',
-            Tools: 'tools',
-            Scanner: 'scan-helper',
+            Home:     'home',
+            Tools:    'tools',
+            Scanner:  'scan-helper',
             Settings: 'cog',
           };
           return (
             <Icon
-              name={icons[route.name] || 'home'}
+              name={icons[route.name] ?? 'home'}
               size={size}
               color={color}
             />
           );
         },
       })}>
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Tools" component={ToolsScreen} />
-      <Tab.Screen name="Scanner" component={ScannerScreen} />
+      <Tab.Screen name="Home"     component={HomeScreen} />
+      <Tab.Screen name="Tools"    component={ToolsScreen} />
+      <Tab.Screen name="Scanner"  component={ScannerScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );

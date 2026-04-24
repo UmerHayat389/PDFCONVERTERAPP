@@ -4,6 +4,9 @@
     <!-- ─── Network ─────────────────────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- ─── Camera ──────────────────────────────────────────────────────────── -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
     <!-- ─── Storage (Android ≤ 12 / API 32) ────────────────────────────────── -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"

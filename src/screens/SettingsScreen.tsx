@@ -1,19 +1,41 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View, Text, Switch, TouchableOpacity,
-  ScrollView, StyleSheet, Alert,
+  ScrollView, StyleSheet, Alert, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { RootState, AppDispatch } from '../store';  // ← Added AppDispatch
+import { RootState, AppDispatch } from '../store';
 import {
   toggleAutoSave, toggleHighQuality, toggleDarkMode,
 } from '../store/slices/settingsSlice';
 import RNFS from 'react-native-fs';
 
+function AnimatedSection({ children, delay }: { children: React.ReactNode; delay: number }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(16)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 450, delay, useNativeDriver: true }),
+      Animated.spring(translateY, { toValue: 0, delay, useNativeDriver: true, damping: 18 }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function RowSeparator() {
+  return <View style={styles.separator} />;
+}
+
 export default function SettingsScreen() {
-  const dispatch = useDispatch<AppDispatch>();  // ← Typed dispatch
+  const dispatch = useDispatch<AppDispatch>();
   const { autoSave, highQuality, darkMode } = useSelector((s: RootState) => s.settings);
 
   const handleClearCache = async () => {
@@ -38,140 +60,222 @@ export default function SettingsScreen() {
     Alert.alert('Output Folder', 'Files are saved to your Downloads folder automatically.');
   };
 
-  const handleLanguage = () => {
-    Alert.alert('Language', 'Only English is supported in this version.');
-  };
-
-  const handleRateApp = () => {
-    Alert.alert('Rate the App', 'Thank you for using PDF Converter! Rating will be available on Play Store.');
-  };
-
   const handlePrivacyPolicy = () => {
     Alert.alert('Privacy Policy', 'This app does not collect or share any personal data. All conversions happen on-device or on your local server.');
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.scroll}>
-        <Text style={styles.pageTitle}>Settings</Text>
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 48 }}>
 
-        {/* Conversion */}
-        <Text style={styles.sectionLabel}>CONVERSION</Text>
-        <View style={styles.section}>
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <Icon name="content-save-outline" size={22} color="#E63946" />
-              <Text style={styles.rowLabel}>Auto Save Output</Text>
-            </View>
-            <Switch
-              value={autoSave}
-              onValueChange={() => { dispatch(toggleAutoSave()); }}  // ← Fixed
-              thumbColor={autoSave ? '#E63946' : '#94a3b8'}
-              trackColor={{ true: '#7f1d1d', false: '#334155' }}
-            />
+        {/* Header */}
+        <AnimatedSection delay={0}>
+          <View style={styles.pageHeader}>
+            <Text style={styles.eyebrow}>PREFERENCES</Text>
+            <Text style={styles.pageTitle}>Settings</Text>
           </View>
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <Icon name="quality-high" size={22} color="#E63946" />
-              <Text style={styles.rowLabel}>High Quality Output</Text>
-            </View>
-            <Switch
-              value={highQuality}
-              onValueChange={() => { dispatch(toggleHighQuality()); }}  // ← Fixed
-              thumbColor={highQuality ? '#E63946' : '#94a3b8'}
-              trackColor={{ true: '#7f1d1d', false: '#334155' }}
-            />
-          </View>
-          <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} onPress={handleOutputFolder}>
-            <View style={styles.rowLeft}>
-              <Icon name="folder-outline" size={22} color="#E63946" />
-              <Text style={styles.rowLabel}>Output Folder</Text>
-            </View>
-            <View style={styles.rowRight}>
-              <Text style={styles.rowValue}>Downloads</Text>
-              <Icon name="chevron-right" size={20} color="#64748b" />
-            </View>
-          </TouchableOpacity>
-        </View>
+        </AnimatedSection>
 
-        {/* App */}
-        <Text style={styles.sectionLabel}>APP</Text>
-        <View style={styles.section}>
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <Icon name="theme-light-dark" size={22} color="#E63946" />
-              <Text style={styles.rowLabel}>Dark Mode</Text>
-            </View>
-            <Switch
-              value={darkMode}
-              onValueChange={() => { dispatch(toggleDarkMode()); }}  // ← Fixed
-              thumbColor={darkMode ? '#E63946' : '#94a3b8'}
-              trackColor={{ true: '#7f1d1d', false: '#334155' }}
-            />
+        {/* Conversion Section */}
+        <AnimatedSection delay={80}>
+          <View style={styles.sectionLabelRow}>
+            <Icon name="swap-horizontal" size={13} color="#E63946" />
+            <Text style={styles.sectionLabel}>CONVERSION</Text>
           </View>
-          <TouchableOpacity style={styles.row} onPress={handleLanguage}>
-            <View style={styles.rowLeft}>
-              <Icon name="translate" size={22} color="#E63946" />
-              <Text style={styles.rowLabel}>Language</Text>
-            </View>
-            <View style={styles.rowRight}>
-              <Text style={styles.rowValue}>English</Text>
-              <Icon name="chevron-right" size={20} color="#64748b" />
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} onPress={handleClearCache}>
-            <View style={styles.rowLeft}>
-              <Icon name="delete-sweep-outline" size={22} color="#E63946" />
-              <Text style={styles.rowLabel}>Clear Cache</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color="#64748b" />
-          </TouchableOpacity>
-        </View>
+          <View style={styles.section}>
 
-        {/* About */}
-        <Text style={styles.sectionLabel}>ABOUT</Text>
-        <View style={styles.section}>
-          <View style={[styles.row]}>
-            <View style={styles.rowLeft}>
-              <Icon name="information-outline" size={22} color="#E63946" />
-              <Text style={styles.rowLabel}>Version</Text>
+            <View style={styles.row}>
+              <View style={styles.rowLeft}>
+                <View style={styles.rowIconBox}>
+                  <Icon name="content-save-outline" size={18} color="#E63946" />
+                </View>
+                <View>
+                  <Text style={styles.rowLabel}>Auto Save Output</Text>
+                  <Text style={styles.rowDesc}>Save files automatically after conversion</Text>
+                </View>
+              </View>
+              <Switch
+                value={autoSave}
+                onValueChange={() => { dispatch(toggleAutoSave()); }}
+                thumbColor={autoSave ? '#E63946' : '#475569'}
+                trackColor={{ true: 'rgba(230,57,70,0.35)', false: '#1E2D40' }}
+              />
             </View>
-            <Text style={styles.rowValue}>1.0.0</Text>
+
+            <RowSeparator />
+
+            <View style={styles.row}>
+              <View style={styles.rowLeft}>
+                <View style={styles.rowIconBox}>
+                  <Icon name="quality-high" size={18} color="#E63946" />
+                </View>
+                <View>
+                  <Text style={styles.rowLabel}>High Quality Output</Text>
+                  <Text style={styles.rowDesc}>Larger file size, better quality</Text>
+                </View>
+              </View>
+              <Switch
+                value={highQuality}
+                onValueChange={() => { dispatch(toggleHighQuality()); }}
+                thumbColor={highQuality ? '#E63946' : '#475569'}
+                trackColor={{ true: 'rgba(230,57,70,0.35)', false: '#1E2D40' }}
+              />
+            </View>
+
+            <RowSeparator />
+
+            <TouchableOpacity style={[styles.row, styles.rowLast]} onPress={handleOutputFolder} activeOpacity={0.75}>
+              <View style={styles.rowLeft}>
+                <View style={styles.rowIconBox}>
+                  <Icon name="folder-open-outline" size={18} color="#E63946" />
+                </View>
+                <View>
+                  <Text style={styles.rowLabel}>Output Folder</Text>
+                  <Text style={styles.rowDesc}>Where converted files are saved</Text>
+                </View>
+              </View>
+              <View style={styles.rowRight}>
+                <Text style={styles.rowValue}>Downloads</Text>
+                <Icon name="chevron-right" size={18} color="#334155" />
+              </View>
+            </TouchableOpacity>
+
           </View>
-          <TouchableOpacity style={styles.row} onPress={handleRateApp}>
-            <View style={styles.rowLeft}>
-              <Icon name="star-outline" size={22} color="#E63946" />
-              <Text style={styles.rowLabel}>Rate the App</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color="#64748b" />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} onPress={handlePrivacyPolicy}>
-            <View style={styles.rowLeft}>
-              <Icon name="shield-lock-outline" size={22} color="#E63946" />
-              <Text style={styles.rowLabel}>Privacy Policy</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color="#64748b" />
-          </TouchableOpacity>
-        </View>
+        </AnimatedSection>
 
-        <View style={{ height: 32 }} />
+        {/* App Section */}
+        <AnimatedSection delay={160}>
+          <View style={styles.sectionLabelRow}>
+            <Icon name="cellphone-cog" size={13} color="#E63946" />
+            <Text style={styles.sectionLabel}>APP</Text>
+          </View>
+          <View style={styles.section}>
+
+            <View style={styles.row}>
+              <View style={styles.rowLeft}>
+                <View style={styles.rowIconBox}>
+                  <Icon name="theme-light-dark" size={18} color="#E63946" />
+                </View>
+                <View>
+                  <Text style={styles.rowLabel}>Dark Mode</Text>
+                  <Text style={styles.rowDesc}>Use dark theme throughout the app</Text>
+                </View>
+              </View>
+              <Switch
+                value={darkMode}
+                onValueChange={() => { dispatch(toggleDarkMode()); }}
+                thumbColor={darkMode ? '#E63946' : '#475569'}
+                trackColor={{ true: 'rgba(230,57,70,0.35)', false: '#1E2D40' }}
+              />
+            </View>
+
+            <RowSeparator />
+
+            <TouchableOpacity style={[styles.row, styles.rowLast]} onPress={handleClearCache} activeOpacity={0.75}>
+              <View style={styles.rowLeft}>
+                <View style={styles.rowIconBox}>
+                  <Icon name="delete-sweep-outline" size={18} color="#E63946" />
+                </View>
+                <View>
+                  <Text style={styles.rowLabel}>Clear Cache</Text>
+                  <Text style={styles.rowDesc}>Remove all temporary files</Text>
+                </View>
+              </View>
+              <Icon name="chevron-right" size={18} color="#334155" />
+            </TouchableOpacity>
+
+          </View>
+        </AnimatedSection>
+
+        {/* About Section */}
+        <AnimatedSection delay={240}>
+          <View style={styles.sectionLabelRow}>
+            <Icon name="information" size={13} color="#E63946" />
+            <Text style={styles.sectionLabel}>ABOUT</Text>
+          </View>
+          <View style={styles.section}>
+
+            <View style={styles.row}>
+              <View style={styles.rowLeft}>
+                <View style={styles.rowIconBox}>
+                  <Icon name="tag-outline" size={18} color="#E63946" />
+                </View>
+                <Text style={styles.rowLabel}>Version</Text>
+              </View>
+              <View style={styles.versionBadge}>
+                <Text style={styles.versionText}>1.0.0</Text>
+              </View>
+            </View>
+
+            <RowSeparator />
+
+            <TouchableOpacity style={[styles.row, styles.rowLast]} onPress={handlePrivacyPolicy} activeOpacity={0.75}>
+              <View style={styles.rowLeft}>
+                <View style={styles.rowIconBox}>
+                  <Icon name="shield-lock-outline" size={18} color="#E63946" />
+                </View>
+                <View>
+                  <Text style={styles.rowLabel}>Privacy Policy</Text>
+                  <Text style={styles.rowDesc}>All data processed on-device</Text>
+                </View>
+              </View>
+              <Icon name="chevron-right" size={18} color="#334155" />
+            </TouchableOpacity>
+
+          </View>
+        </AnimatedSection>
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#0D1B2A' },
+  safeArea: { flex: 1, backgroundColor: '#080F1A' },
   scroll: { flex: 1, paddingHorizontal: 16 },
-  pageTitle: { fontSize: 24, fontWeight: 'bold', color: 'white', paddingTop: 16, paddingBottom: 24 },
-  sectionLabel: { color: '#64748b', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 8, marginLeft: 4 },
-  section: { backgroundColor: '#1D3557', borderRadius: 16, paddingHorizontal: 16, marginBottom: 20 },
-  row: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#0D1B2A',
+
+  pageHeader: { paddingTop: 20, paddingBottom: 24 },
+  eyebrow: { color: '#E63946', fontSize: 10, fontWeight: '800', letterSpacing: 2, marginBottom: 4 },
+  pageTitle: { fontSize: 26, fontWeight: '800', color: '#F1F5F9', letterSpacing: -0.5 },
+
+  sectionLabelRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginBottom: 8, marginLeft: 4,
   },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  sectionLabel: {
+    color: '#475569', fontSize: 10, fontWeight: '800', letterSpacing: 2,
+  },
+
+  section: {
+    backgroundColor: '#0F1E32', borderRadius: 18,
+    paddingHorizontal: 16, marginBottom: 20,
+    borderWidth: 1, borderColor: '#1E2D40',
+  },
+  separator: { height: 1, backgroundColor: '#111D2E' },
+
+  row: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', paddingVertical: 16,
+  },
+  rowLast: { paddingBottom: 16 },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 8 },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  rowLabel: { color: 'white', fontSize: 15 },
-  rowValue: { color: '#64748b', fontSize: 14 },
+  rowIconBox: {
+    backgroundColor: 'rgba(230,57,70,0.1)',
+    padding: 8, borderRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(230,57,70,0.15)',
+  },
+  rowLabel: { color: '#E2E8F0', fontSize: 14, fontWeight: '700' },
+  rowDesc: { color: '#475569', fontSize: 11, marginTop: 1 },
+  rowValue: { color: '#64748b', fontSize: 13, fontWeight: '600' },
+
+  versionBadge: {
+    backgroundColor: 'rgba(230,57,70,0.1)',
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
+    borderWidth: 1, borderColor: 'rgba(230,57,70,0.2)',
+  },
+  versionText: { color: '#E63946', fontSize: 12, fontWeight: '700' },
 });

@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import {
   View, Image, TouchableOpacity, Text,
-  StyleSheet, Alert, Share, Animated,
+  StyleSheet, Alert, Share, Animated, Platform,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
@@ -39,6 +39,11 @@ export default function PreviewScreen() {
       const destPath  = `${RNFS.PicturesDirectoryPath}/${fileName}`;
 
       await RNFS.copyFile(imageUri.replace('file://', ''), destPath);
+
+      // ✅ Notify Android MediaStore so the file appears in the Gallery app.
+      // Same approach used in ConversionResultModal — no extra library needed.
+      if (Platform.OS === 'android') await RNFS.scanFile(destPath);
+
       dispatch(saveScan(currentScan!));
 
       // ── Get file size for display ──────────────────────────────────────

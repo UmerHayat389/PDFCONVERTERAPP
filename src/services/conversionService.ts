@@ -1,11 +1,7 @@
 import { Platform } from 'react-native';
 import { resolveExtension, checkExtension } from '../utils/fileUtils';
 
-const BASE_URL = Platform.select({
-  android: 'http://192.168.100.4:3000',
-  ios:     'http://localhost:3000',
-  default: 'http://192.168.100.4:3000',
-});
+const BASE_URL = 'https://pdfconverter-backend-1umq.onrender.com';
 
 export type ConversionResult = {
   downloadUrl: string;
@@ -66,8 +62,8 @@ export const convertFile = async (
   formData.append('toFormat',   toFormat);
 
   const controller = new AbortController();
-  // 60 s timeout — large PDFs and images can be slow on mobile networks
-  const timeout = setTimeout(() => controller.abort(), 60_000);
+  // 90s timeout — accounts for Render free tier cold start (30-50s) + conversion time
+  const timeout = setTimeout(() => controller.abort(), 90_000);
 
   let response: Response;
   try {
@@ -78,10 +74,10 @@ export const convertFile = async (
     });
   } catch (err: any) {
     if (err.name === 'AbortError') {
-      throw new Error('Request timed out. Check that your server is running and reachable.');
+      throw new Error('Request timed out. The server may be waking up, please try again.');
     }
     throw new Error(
-      `Cannot reach the server.\nMake sure your PC and phone are on the same Wi-Fi.\n(${err.message})`,
+      `Cannot reach the server.\nCheck your internet connection.\n(${err.message})`,
     );
   } finally {
     clearTimeout(timeout);

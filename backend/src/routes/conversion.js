@@ -6,15 +6,6 @@ const { convertFile } = require('../services/conversionService');
 
 const router = express.Router();
 
-/**
- * POST /api/convert
- * Body: multipart/form-data
- *   - file: the source file
- *   - fromFormat: e.g. "PNG"
- *   - toFormat:   e.g. "PDF"
- *
- * Returns: { downloadUrl, fileName, fileSize, previewUrl }
- */
 router.post('/convert', upload.single('file'), async (req, res, next) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -32,15 +23,14 @@ router.post('/convert', upload.single('file'), async (req, res, next) => {
     const outputPath = path.join(__dirname, '../../converted', outputName);
     const stat = await fse.stat(outputPath);
 
-    // Base URL — in production replace with your actual server IP/domain
-    const BASE_URL = `http://${req.hostname}:${process.env.PORT || 3000}`;
+    // Use env variable in production, fallback for local
+    const BASE_URL = process.env.BASE_URL || `http://${req.hostname}:${process.env.PORT || 3000}`;
 
     res.json({
       success: true,
       fileName: outputName,
       fileSize: stat.size,
       downloadUrl: `${BASE_URL}/download/${outputName}`,
-      // For image outputs, the same URL works as a preview
       previewUrl: isImageFormat(toFormat)
         ? `${BASE_URL}/download/${outputName}`
         : null,
@@ -48,15 +38,10 @@ router.post('/convert', upload.single('file'), async (req, res, next) => {
   } catch (err) {
     next(err);
   } finally {
-    // Clean up uploaded source file
     fse.remove(inputPath).catch(() => {});
   }
 });
 
-/**
- * GET /api/formats
- * Returns supported conversion pairs
- */
 router.get('/formats', (_req, res) => {
   res.json({
     supported: [

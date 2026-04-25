@@ -12,14 +12,16 @@ import {
 } from '../store/slices/settingsSlice';
 import RNFS from 'react-native-fs';
 
+const ACCENT = '#3F61FE';
+
 function AnimatedSection({ children, delay }: { children: React.ReactNode; delay: number }) {
   const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(16)).current;
+  const translateY = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 450, delay, useNativeDriver: true }),
-      Animated.spring(translateY, { toValue: 0, delay, useNativeDriver: true, damping: 18 }),
+      Animated.timing(opacity, { toValue: 1, duration: 400, delay, useNativeDriver: true }),
+      Animated.spring(translateY, { toValue: 0, delay, useNativeDriver: true, damping: 18, stiffness: 100 }),
     ]).start();
   }, []);
 
@@ -32,6 +34,61 @@ function AnimatedSection({ children, delay }: { children: React.ReactNode; delay
 
 function RowSeparator() {
   return <View style={styles.separator} />;
+}
+
+interface RowItem {
+  icon: string;
+  iconColor: string;
+  iconBg: string;
+  label: string;
+  desc?: string;
+  type: 'toggle' | 'nav';
+  value?: boolean;
+  navValue?: string;
+  onToggle?: () => void;
+  onPress?: () => void;
+}
+
+function SettingsRow({ item, isLast }: { item: RowItem; isLast: boolean }) {
+  const Wrapper: any = item.type === 'nav' ? TouchableOpacity : View;
+  const wrapperProps = item.type === 'nav'
+    ? { onPress: item.onPress, activeOpacity: 0.7 }
+    : {};
+
+  return (
+    <>
+      <Wrapper style={styles.row} {...wrapperProps}>
+        {/* Icon box */}
+        <View style={[styles.rowIconBox, { backgroundColor: item.iconBg }]}>
+          <Icon name={item.icon} size={18} color={item.iconColor} />
+        </View>
+
+        {/* Label + desc */}
+        <View style={styles.rowTextWrap}>
+          <Text style={styles.rowLabel}>{item.label}</Text>
+          {item.desc ? <Text style={styles.rowDesc}>{item.desc}</Text> : null}
+        </View>
+
+        {/* Right side */}
+        {item.type === 'toggle' ? (
+          <Switch
+            value={item.value}
+            onValueChange={item.onToggle}
+            thumbColor="#FFFFFF"
+            trackColor={{ true: ACCENT, false: '#D1D5DB' }}
+          />
+        ) : (
+          <View style={styles.rowRight}>
+            {item.navValue ? (
+              <Text style={[styles.rowValue, { color: item.iconColor }]}>{item.navValue}</Text>
+            ) : null}
+            <Icon name="chevron-right" size={18} color="#CBD5E1" />
+          </View>
+        )}
+      </Wrapper>
+      {!isLast && <RowSeparator />}
+    </>
+  );
 }
 
 export default function SettingsScreen() {
@@ -64,167 +121,123 @@ export default function SettingsScreen() {
     Alert.alert('Privacy Policy', 'This app does not collect or share any personal data. All conversions happen on-device or on your local server.');
   };
 
+  const scanSettingsRows: RowItem[] = [
+    {
+      icon: 'quality-high',
+      iconColor: ACCENT,
+      iconBg: 'rgba(63,97,254,0.10)',
+      label: 'High Quality Output',
+      desc: 'Larger file size, better quality',
+      type: 'toggle',
+      value: highQuality,
+      onToggle: () => dispatch(toggleHighQuality()),
+    },
+    {
+      icon: 'crop-free',
+      iconColor: '#22C55E',
+      iconBg: 'rgba(34,197,94,0.10)',
+      label: 'Auto Crop',
+      desc: 'Automatically detect and crop edges',
+      type: 'toggle',
+      value: autoSave,
+      onToggle: () => dispatch(toggleAutoSave()),
+    },
+    {
+      icon: 'folder-open-outline',
+      iconColor: '#F59E0B',
+      iconBg: 'rgba(245,158,11,0.10)',
+      label: 'Output Folder',
+      desc: 'Where converted files are saved',
+      type: 'nav',
+      navValue: 'Downloads',
+      onPress: handleOutputFolder,
+    },
+  ];
+
+  const generalRows: RowItem[] = [
+    {
+      icon: 'theme-light-dark',
+      iconColor: '#A855F7',
+      iconBg: 'rgba(168,85,247,0.10)',
+      label: 'Dark Mode',
+      desc: 'Use dark theme throughout the app',
+      type: 'toggle',
+      value: darkMode,
+      onToggle: () => dispatch(toggleDarkMode()),
+    },
+    {
+      icon: 'delete-sweep-outline',
+      iconColor: '#EF4444',
+      iconBg: 'rgba(239,68,68,0.10)',
+      label: 'Clear Cache',
+      desc: 'Remove all temporary files',
+      type: 'nav',
+      onPress: handleClearCache,
+    },
+  ];
+
+  const aboutRows: RowItem[] = [
+    {
+      icon: 'tag-outline',
+      iconColor: ACCENT,
+      iconBg: 'rgba(63,97,254,0.10)',
+      label: 'Version',
+      type: 'nav',
+      navValue: '1.0.0',
+    },
+    {
+      icon: 'shield-lock-outline',
+      iconColor: '#22C55E',
+      iconBg: 'rgba(34,197,94,0.10)',
+      label: 'Privacy Policy',
+      desc: 'All data processed on-device',
+      type: 'nav',
+      onPress: handlePrivacyPolicy,
+    },
+  ];
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 48 }}>
+        contentContainerStyle={styles.scrollContent}>
 
         {/* Header */}
         <AnimatedSection delay={0}>
           <View style={styles.pageHeader}>
-            <Text style={styles.eyebrow}>PREFERENCES</Text>
             <Text style={styles.pageTitle}>Settings</Text>
+            <Text style={styles.pageSub}>Customize your scanning experience</Text>
           </View>
         </AnimatedSection>
 
-        {/* Conversion Section */}
+        {/* Scan Settings */}
         <AnimatedSection delay={80}>
-          <View style={styles.sectionLabelRow}>
-            <Icon name="swap-horizontal" size={13} color="#E63946" />
-            <Text style={styles.sectionLabel}>CONVERSION</Text>
-          </View>
+          <Text style={styles.sectionLabel}>SCAN SETTINGS</Text>
           <View style={styles.section}>
-
-            <View style={styles.row}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconBox}>
-                  <Icon name="content-save-outline" size={18} color="#E63946" />
-                </View>
-                <View>
-                  <Text style={styles.rowLabel}>Auto Save Output</Text>
-                  <Text style={styles.rowDesc}>Save files automatically after conversion</Text>
-                </View>
-              </View>
-              <Switch
-                value={autoSave}
-                onValueChange={() => { dispatch(toggleAutoSave()); }}
-                thumbColor={autoSave ? '#E63946' : '#475569'}
-                trackColor={{ true: 'rgba(230,57,70,0.35)', false: '#1E2D40' }}
-              />
-            </View>
-
-            <RowSeparator />
-
-            <View style={styles.row}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconBox}>
-                  <Icon name="quality-high" size={18} color="#E63946" />
-                </View>
-                <View>
-                  <Text style={styles.rowLabel}>High Quality Output</Text>
-                  <Text style={styles.rowDesc}>Larger file size, better quality</Text>
-                </View>
-              </View>
-              <Switch
-                value={highQuality}
-                onValueChange={() => { dispatch(toggleHighQuality()); }}
-                thumbColor={highQuality ? '#E63946' : '#475569'}
-                trackColor={{ true: 'rgba(230,57,70,0.35)', false: '#1E2D40' }}
-              />
-            </View>
-
-            <RowSeparator />
-
-            <TouchableOpacity style={[styles.row, styles.rowLast]} onPress={handleOutputFolder} activeOpacity={0.75}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconBox}>
-                  <Icon name="folder-open-outline" size={18} color="#E63946" />
-                </View>
-                <View>
-                  <Text style={styles.rowLabel}>Output Folder</Text>
-                  <Text style={styles.rowDesc}>Where converted files are saved</Text>
-                </View>
-              </View>
-              <View style={styles.rowRight}>
-                <Text style={styles.rowValue}>Downloads</Text>
-                <Icon name="chevron-right" size={18} color="#334155" />
-              </View>
-            </TouchableOpacity>
-
+            {scanSettingsRows.map((item, i) => (
+              <SettingsRow key={item.label} item={item} isLast={i === scanSettingsRows.length - 1} />
+            ))}
           </View>
         </AnimatedSection>
 
-        {/* App Section */}
+        {/* General */}
         <AnimatedSection delay={160}>
-          <View style={styles.sectionLabelRow}>
-            <Icon name="cellphone-cog" size={13} color="#E63946" />
-            <Text style={styles.sectionLabel}>APP</Text>
-          </View>
+          <Text style={styles.sectionLabel}>GENERAL</Text>
           <View style={styles.section}>
-
-            <View style={styles.row}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconBox}>
-                  <Icon name="theme-light-dark" size={18} color="#E63946" />
-                </View>
-                <View>
-                  <Text style={styles.rowLabel}>Dark Mode</Text>
-                  <Text style={styles.rowDesc}>Use dark theme throughout the app</Text>
-                </View>
-              </View>
-              <Switch
-                value={darkMode}
-                onValueChange={() => { dispatch(toggleDarkMode()); }}
-                thumbColor={darkMode ? '#E63946' : '#475569'}
-                trackColor={{ true: 'rgba(230,57,70,0.35)', false: '#1E2D40' }}
-              />
-            </View>
-
-            <RowSeparator />
-
-            <TouchableOpacity style={[styles.row, styles.rowLast]} onPress={handleClearCache} activeOpacity={0.75}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconBox}>
-                  <Icon name="delete-sweep-outline" size={18} color="#E63946" />
-                </View>
-                <View>
-                  <Text style={styles.rowLabel}>Clear Cache</Text>
-                  <Text style={styles.rowDesc}>Remove all temporary files</Text>
-                </View>
-              </View>
-              <Icon name="chevron-right" size={18} color="#334155" />
-            </TouchableOpacity>
-
+            {generalRows.map((item, i) => (
+              <SettingsRow key={item.label} item={item} isLast={i === generalRows.length - 1} />
+            ))}
           </View>
         </AnimatedSection>
 
-        {/* About Section */}
+        {/* About */}
         <AnimatedSection delay={240}>
-          <View style={styles.sectionLabelRow}>
-            <Icon name="information" size={13} color="#E63946" />
-            <Text style={styles.sectionLabel}>ABOUT</Text>
-          </View>
+          <Text style={styles.sectionLabel}>ABOUT</Text>
           <View style={styles.section}>
-
-            <View style={styles.row}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconBox}>
-                  <Icon name="tag-outline" size={18} color="#E63946" />
-                </View>
-                <Text style={styles.rowLabel}>Version</Text>
-              </View>
-              <View style={styles.versionBadge}>
-                <Text style={styles.versionText}>1.0.0</Text>
-              </View>
-            </View>
-
-            <RowSeparator />
-
-            <TouchableOpacity style={[styles.row, styles.rowLast]} onPress={handlePrivacyPolicy} activeOpacity={0.75}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconBox}>
-                  <Icon name="shield-lock-outline" size={18} color="#E63946" />
-                </View>
-                <View>
-                  <Text style={styles.rowLabel}>Privacy Policy</Text>
-                  <Text style={styles.rowDesc}>All data processed on-device</Text>
-                </View>
-              </View>
-              <Icon name="chevron-right" size={18} color="#334155" />
-            </TouchableOpacity>
-
+            {aboutRows.map((item, i) => (
+              <SettingsRow key={item.label} item={item} isLast={i === aboutRows.length - 1} />
+            ))}
           </View>
         </AnimatedSection>
 
@@ -234,48 +247,50 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#080F1A' },
-  scroll: { flex: 1, paddingHorizontal: 16 },
+  safeArea: { flex: 1, backgroundColor: '#F3F5FB' },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 18, paddingBottom: 48 },
 
-  pageHeader: { paddingTop: 20, paddingBottom: 24 },
-  eyebrow: { color: '#E63946', fontSize: 10, fontWeight: '800', letterSpacing: 2, marginBottom: 4 },
-  pageTitle: { fontSize: 26, fontWeight: '800', color: '#F1F5F9', letterSpacing: -0.5 },
-
-  sectionLabelRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginBottom: 8, marginLeft: 4,
+  // Header
+  pageHeader: { paddingTop: 16, paddingBottom: 20 },
+  pageTitle: {
+    fontSize: 26, fontWeight: '800', color: '#111827', letterSpacing: -0.5,
   },
+  pageSub: {
+    fontSize: 13, color: '#9CA3AF', marginTop: 3, fontWeight: '500',
+  },
+
+  // Section
   sectionLabel: {
-    color: '#475569', fontSize: 10, fontWeight: '800', letterSpacing: 2,
+    fontSize: 11, fontWeight: '800', color: '#9CA3AF',
+    letterSpacing: 1.5, marginBottom: 8, marginLeft: 2,
   },
-
   section: {
-    backgroundColor: '#0F1E32', borderRadius: 18,
-    paddingHorizontal: 16, marginBottom: 20,
-    borderWidth: 1, borderColor: '#1E2D40',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    marginBottom: 22,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  separator: { height: 1, backgroundColor: '#111D2E' },
+  separator: {
+    height: 1, backgroundColor: '#F1F5F9', marginLeft: 48,
+  },
 
+  // Row
   row: {
     flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', paddingVertical: 16,
+    paddingVertical: 14, gap: 12,
   },
-  rowLast: { paddingBottom: 16 },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 8 },
-  rowRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   rowIconBox: {
-    backgroundColor: 'rgba(230,57,70,0.1)',
-    padding: 8, borderRadius: 10,
-    borderWidth: 1, borderColor: 'rgba(230,57,70,0.15)',
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
   },
-  rowLabel: { color: '#E2E8F0', fontSize: 14, fontWeight: '700' },
-  rowDesc: { color: '#475569', fontSize: 11, marginTop: 1 },
-  rowValue: { color: '#64748b', fontSize: 13, fontWeight: '600' },
-
-  versionBadge: {
-    backgroundColor: 'rgba(230,57,70,0.1)',
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
-    borderWidth: 1, borderColor: 'rgba(230,57,70,0.2)',
-  },
-  versionText: { color: '#E63946', fontSize: 12, fontWeight: '700' },
+  rowTextWrap: { flex: 1 },
+  rowLabel: { fontSize: 14, fontWeight: '700', color: '#111827' },
+  rowDesc: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  rowValue: { fontSize: 13, fontWeight: '600' },
 });

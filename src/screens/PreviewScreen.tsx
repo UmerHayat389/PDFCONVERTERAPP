@@ -7,22 +7,26 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import RNFS from 'react-native-fs';
 import { saveScan, clearCurrentScan } from '../store/slices/scannerSlice';
-import { RootState } from '../store';
+import { addRecentFile } from '../store/slices/fileSlice';
+import { RootState, AppDispatch } from '../store';
+import { saveRecentFiles } from '../utils/storage';
 import Toast from 'react-native-toast-message';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import uuid from 'react-native-uuid';
 
 export default function PreviewScreen() {
-  const dispatch = useDispatch();
-  const navigation = useNavigation<any>();
+  const dispatch    = useDispatch<AppDispatch>();
+  const navigation  = useNavigation<any>();
   const currentScan = useSelector((s: RootState) => s.scanner.currentScan);
-  const imageUri = currentScan?.croppedUri || currentScan?.uri;
+  const recentFiles = useSelector((s: RootState) => s.files.recentFiles);
+  const imageUri    = currentScan?.croppedUri || currentScan?.uri;
 
-  const fadeIn = useRef(new Animated.Value(0)).current;
+  const fadeIn      = useRef(new Animated.Value(0)).current;
   const footerSlide = useRef(new Animated.Value(40)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(fadeIn,      { toValue: 1, duration: 500, useNativeDriver: true }),
       Animated.spring(footerSlide, { toValue: 0, useNativeDriver: true, damping: 18 }),
     ]).start();
   }, []);
@@ -30,10 +34,44 @@ export default function PreviewScreen() {
   const saveToGallery = async () => {
     if (!imageUri) return;
     try {
-      const destPath = `${RNFS.PicturesDirectoryPath}/scan_${Date.now()}.jpg`;
+      const timestamp = Date.now();
+      const fileName  = `scan_${timestamp}.jpg`;
+      const destPath  = `${RNFS.PicturesDirectoryPath}/${fileName}`;
+
       await RNFS.copyFile(imageUri.replace('file://', ''), destPath);
       dispatch(saveScan(currentScan!));
-      Toast.show({ type: 'success', text1: '✓ Saved to gallery', text2: 'Your scan has been saved successfully' });
+
+      // ── Get file size for display ──────────────────────────────────────
+      let sizeLabel = '';
+      try {
+        const stat = await RNFS.stat(destPath);
+        const kb   = Math.round(stat.size / 1024);
+        sizeLabel  = kb < 1024 ? `${kb} KB` : `${(kb / 1024).toFixed(1)} MB`;
+      } catch { /* size is optional */ }
+
+      // ── Register in recent files ────────────────────────────────────────
+      const newFile = {
+        id:   uuid.v4() as string,
+        name: fileName,
+        size: sizeLabel,
+        date: new Date().toLocaleDateString(),
+        type: 'image',
+        path: destPath,
+      };
+
+      dispatch(addRecentFile(newFile));
+
+      const updated = [
+        newFile,
+        ...recentFiles.filter(f => f.id !== newFile.id),
+      ].slice(0, 20);
+      saveRecentFiles(updated);
+
+      Toast.show({
+        type:  'success',
+        text1: '✓ Saved to gallery',
+        text2: 'Your scan has been saved successfully',
+      });
       navigation.popToTop();
     } catch {
       Alert.alert('Error', 'Could not save image.');
@@ -93,7 +131,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#080F1A' },
 
   imageWrap: { flex: 1, position: 'relative' },
-  image: { flex: 1, width: '100%' },
+  image:     { flex: 1, width: '100%' },
   previewLabel: {
     position: 'absolute', top: 16, left: 16,
     backgroundColor: 'rgba(0,0,0,0.6)',

@@ -3,7 +3,6 @@ import {
   View, Image, TouchableOpacity, Text,
   StyleSheet, ActivityIndicator, Animated,
 } from 'react-native';
-import DocumentScanner from 'react-native-document-scanner-plugin';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { setCurrentScan } from '../store/slices/scannerSlice';
@@ -11,40 +10,36 @@ import { RootState } from '../store';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 export default function CropScreen() {
-  const dispatch = useDispatch();
-  const navigation = useNavigation<any>();
-  const currentScan = useSelector((s: RootState) => s.scanner.currentScan);
-  const [croppedUri, setCroppedUri] = useState<string | null>(null);
+  const dispatch     = useDispatch();
+  const navigation   = useNavigation<any>();
+  const currentScan  = useSelector((s: RootState) => s.scanner.currentScan);
+
+  // ✅ FIX: Don't call DocumentScanner.scanDocument() here again.
+  // The image was already captured in ScannerScreen and stored in Redux.
+  // Just use that URI directly — no second camera session needed.
+  const [croppedUri, setCroppedUri] = useState<string | null>(
+    currentScan?.uri ?? null,
+  );
   const [scanning, setScanning] = useState(true);
 
-  const fadeIn = useRef(new Animated.Value(0)).current;
+  const fadeIn   = useRef(new Animated.Value(0)).current;
   const btnSlide = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    if (currentScan?.uri) runScan(currentScan.uri);
-  }, []);
-
-  const runScan = async (uri: string) => {
-    setScanning(true);
-    try {
-      const { scannedImages } = await DocumentScanner.scanDocument({
-        croppedImageQuality: 90,
-      });
-      if (scannedImages && scannedImages.length > 0) {
-        setCroppedUri(scannedImages[0]);
-      } else {
-        setCroppedUri(uri);
-      }
-    } catch {
-      setCroppedUri(uri);
-    } finally {
+    // ✅ FIX: Instead of launching a second scan, just show the image that
+    // was already scanned. Simulate a brief "processing" moment so the
+    // loader card is visible, then reveal the image with the same animation.
+    const timer = setTimeout(() => {
+      setCroppedUri(currentScan?.uri ?? null);
       setScanning(false);
       Animated.parallel([
-        Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(fadeIn,  { toValue: 1, duration: 500, useNativeDriver: true }),
         Animated.spring(btnSlide, { toValue: 0, useNativeDriver: true, damping: 16 }),
       ]).start();
-    }
-  };
+    }, 600); // short delay so the loader doesn't flash instantly
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const onConfirm = () => {
     if (!croppedUri || !currentScan) return;
@@ -106,10 +101,10 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   loaderTitle: { color: '#F1F5F9', fontSize: 18, fontWeight: '800', marginTop: 8 },
-  loaderSub: { color: '#64748b', fontSize: 13 },
+  loaderSub:   { color: '#64748b', fontSize: 13 },
 
   imageWrap: { flex: 1, position: 'relative' },
-  preview: { flex: 1, width: '100%' },
+  preview:   { flex: 1, width: '100%' },
   badge: {
     position: 'absolute', top: 16, right: 16,
     backgroundColor: 'rgba(0,0,0,0.7)',

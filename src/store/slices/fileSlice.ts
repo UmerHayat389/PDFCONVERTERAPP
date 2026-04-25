@@ -23,10 +23,25 @@ const fileSlice = createSlice({
     removeFile: (state, action: PayloadAction<string>) => {
       state.files = state.files.filter(f => f.id !== action.payload);
     },
+
+    // Deduplicate by id, prepend newest, keep last 20
     addRecentFile: (state, action: PayloadAction<FileItem>) => {
-      state.recentFiles.unshift(action.payload);
-      if (state.recentFiles.length > 10) state.recentFiles.pop();
+      state.recentFiles = [
+        action.payload,
+        ...state.recentFiles.filter(f => f.id !== action.payload.id),
+      ].slice(0, 20);
     },
+
+    // Hydrate from AsyncStorage on app launch
+    setRecentFiles: (state, action: PayloadAction<FileItem[]>) => {
+      state.recentFiles = action.payload;
+    },
+
+    // Remove a single entry (⋮ menu in HomeScreen)
+    removeRecentFile: (state, action: PayloadAction<string>) => {
+      state.recentFiles = state.recentFiles.filter(f => f.id !== action.payload);
+    },
+
     setConverting: (state, action: PayloadAction<boolean>) => {
       state.isConverting = action.payload;
     },
@@ -36,5 +51,13 @@ const fileSlice = createSlice({
   },
 });
 
-export const { addFile, removeFile, addRecentFile, setConverting, clearFiles } = fileSlice.actions;
+export const {
+  addFile,
+  removeFile,
+  addRecentFile,
+  setRecentFiles,
+  removeRecentFile,
+  setConverting,
+  clearFiles,
+} = fileSlice.actions;
 export default fileSlice.reducer;
